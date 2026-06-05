@@ -168,6 +168,10 @@
         .toast-item{background:var(--card);color:var(--gold);padding:11px 20px;border-radius:22px;font-size:.8rem;font-weight:600;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.55);border:1px solid var(--border);animation:toastIn .35s cubic-bezier(.22,.61,.36,1),toastOut .3s ease 1.9s forwards;pointer-events:auto}
         @keyframes toastIn{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes toastOut{to{opacity:0;transform:translateY(-12px)}}
+        /* 事件Toast分级 */
+        .toast-item.goal-toast{background:linear-gradient(135deg,#5C2020,#8B2020);color:#FFD700;font-size:.95rem;padding:14px 24px;border-color:var(--red-bright);animation:toastIn .35s cubic-bezier(.22,.61,.36,1),toastOut .3s ease 3.2s forwards;box-shadow:0 6px 32px rgba(255,68,68,.25)}
+        .toast-item.card-toast{background:var(--card);color:var(--orange);border-color:#D29922;font-size:.78rem}
+        .toast-item.sub-toast{background:var(--card);color:var(--sub);font-size:.75rem}
 
         /* ====== 底部导航 ====== */
         .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0 calc(6px + var(--safe-bottom));z-index:20;backdrop-filter:blur(12px)}
@@ -784,6 +788,7 @@
             <div class="predict-subtab" data-plan="zhiqiong">智穹</div>
         </div>
         <div id="predictContent"></div>
+        <canvas id="oddsChart" width="360" height="180" style="display:none;width:100%;max-width:100%;margin:8px 0;border-radius:12px"></canvas>
     </div>
     <div id="panel-stats" class="tab-panel"></div>
     <div id="panel-h2h" class="tab-panel"></div>
@@ -1920,13 +1925,13 @@ function toggleSound() { soundEnabled = !soundEnabled; localStorage.setItem('fbs
 function playSound(type) { if (!soundEnabled) return; try { const ac = new (window.AudioContext || window.webkitAudioContext)(); const osc = ac.createOscillator(); const gain = ac.createGain(); osc.connect(gain); gain.connect(ac.destination); gain.gain.value = 0.12; if (type === 'goal') { osc.frequency.setValueAtTime(400, ac.currentTime); osc.frequency.linearRampToValueAtTime(800, ac.currentTime + 0.15); gain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.2); osc.start(); osc.stop(ac.currentTime + 0.2); } else if (type === 'whistle') { osc.frequency.value = 600; osc.start(); osc.stop(ac.currentTime + 0.5); } else { osc.frequency.value = 300; osc.start(); osc.stop(ac.currentTime + 0.1); } setTimeout(() => ac.close(), 500); } catch(e) {} }
 // P2: 增强事件通知
 function pushEventNotify(eventType, homeTeam, awayTeam, homeGoals, awayGoals, player) {
-    let msg = '', duration = 2000;
-    if (eventType === 'goal') { msg = `⚽ GOAL! ${homeTeam} ${homeGoals}:${awayGoals} ${awayTeam}`; duration = 3500; playSound('goal'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }
-    else if (eventType === 'yellow') { msg = `🟨 黄牌 · ${player}`; duration = 2000; playSound('card'); }
-    else if (eventType === 'red') { msg = `🟥 红牌 · ${player}`; duration = 2800; playSound('card'); }
-    else if (eventType === 'sub') { msg = `🔄 换人 · ${player}`; duration = 1800; }
+    let msg = '', duration = 2000, cls = '';
+    if (eventType === 'goal') { msg = `⚽ GOAL! ${homeTeam} ${homeGoals}:${awayGoals} ${awayTeam}`; duration = 3500; cls = 'goal-toast'; playSound('goal'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }
+    else if (eventType === 'yellow') { msg = `🟨 黄牌 · ${player}`; duration = 2000; cls = 'card-toast'; playSound('card'); }
+    else if (eventType === 'red') { msg = `🟥 红牌 · ${player}`; duration = 2800; cls = 'card-toast'; playSound('card'); }
+    else if (eventType === 'sub') { msg = `🔄 换人 · ${player}`; duration = 1800; cls = 'sub-toast'; }
     else { msg = `📌 ${player}`; duration = 1800; }
-    showToast(msg, duration);
+    showToast(msg, duration, cls);
 }
 // 统一定时器管理
 const timers = { home: [], detail: [], login: [], all: [] };
@@ -2033,9 +2038,9 @@ function loadUser(){try{const r=localStorage.getItem('fbs-user-v3');return r?JSO
 function $(s){return document.querySelector(s)}
 function $$(s){return document.querySelectorAll(s)}
 function getMatch(id){return matchData.find(m=>m.id===id)}
-function showToast(msg,d=2200){
+function showToast(msg,d=2200,cls=''){
     const stack=$('#toastStack');
-    const el=document.createElement('div');el.className='toast-item';el.textContent=msg;
+    const el=document.createElement('div');el.className='toast-item'+(cls?' '+cls:'');el.textContent=msg;
     el.style.animationDelay='0s, '+(d-300)+'ms';stack.appendChild(el);
     setTimeout(()=>{if(el.parentNode)el.remove()},d+50);
     while(stack.children.length>3)stack.firstChild.remove();
@@ -2227,6 +2232,8 @@ function renderPredictPanel(m){
     const subtab=$(`#predictSubtabs .predict-subtab[data-plan="${currentPredictPlan}"]`);
     if(subtab)subtab.classList.add('active');
     renderPredictContent(m,currentPredictPlan);
+    // 赔率走势图
+    setTimeout(() => drawOddsChart(m), 150);
 }
 
 function renderPredictContent(m,plan){
@@ -3632,6 +3639,69 @@ function drawTeamRadar(teamName, stats) {
         ctx.fillText(values[i], nx, ny);
     }
 }
+// 赔率走势图
+function drawOddsChart(m) {
+    const canvas = document.getElementById('oddsChart');
+    if (!canvas || !m) { if (canvas) canvas.style.display = 'none'; return; }
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    const w = 360, h = 180, pad = { top: 25, right: 25, bottom: 25, left: 40 };
+    const pw = w - pad.left - pad.right, ph = h - pad.top - pad.bottom;
+    ctx.clearRect(0, 0, w, h);
+    // 背景
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    // 网格
+    ctx.strokeStyle = isDark ? 'rgba(92,48,48,.4)' : 'rgba(212,197,181,.4)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+        const y = pad.top + ph * i / 4;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+        // Y轴标签
+        const val = (4.5 - i * 0.8).toFixed(1);
+        ctx.fillStyle = isDark ? '#8B7535' : '#A68A3C'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(val, pad.left - 5, y + 3);
+    }
+    // 生成模拟赔率走势数据（12个点）
+    const base = [m.odds.win, m.odds.draw, m.odds.loss];
+    const labels = ['主胜', '平局', '客胜'];
+    const colors = ['#FF4444', '#F59E0B', '#4A90D9'];
+    const series = [[], [], []];
+    for (let i = 0; i < 12; i++) {
+        for (let s = 0; s < 3; s++) {
+            const noise = (Math.random() - 0.5) * 0.3;
+            const prev = i > 0 ? series[s][i - 1] : base[s];
+            series[s].push(Math.max(1.1, (prev + noise).toFixed(2)));
+        }
+    }
+    // X轴标签
+    const hours = ['-6h', '-5.5h', '-5h', '-4.5h', '-4h', '-3.5h', '-3h', '-2.5h', '-2h', '-1.5h', '-1h', '现在'];
+    // 绘制折线
+    const yRange = [1.0, 5.0];
+    const toX = (i) => pad.left + pw * i / 11;
+    const toY = (v) => pad.top + ph - ph * (v - yRange[0]) / (yRange[1] - yRange[0]);
+    for (let s = 0; s < 3; s++) {
+        ctx.beginPath();
+        ctx.strokeStyle = colors[s]; ctx.lineWidth = s === 0 ? 2.2 : 1.2; ctx.lineJoin = 'round';
+        for (let i = 0; i < 12; i++) {
+            const x = toX(i), y = toY(series[s][i]);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        // 端点标注
+        const lastX = toX(11), lastY = toY(series[s][11]);
+        ctx.fillStyle = colors[s]; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(labels[s] + ' ' + series[s][11], lastX + 3, lastY + 3);
+        // 图例
+        const lx = pad.left + s * 55;
+        ctx.fillStyle = colors[s]; ctx.fillRect(lx, 8, 10, 10);
+        ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(labels[s], lx + 13, 17);
+    }
+    // X轴时间标签
+    ctx.fillStyle = isDark ? '#8B7535' : '#A68A3C'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+    for (let i = 0; i < 12; i += 2) ctx.fillText(hours[i], toX(i), h - 4);
+}
+
 function toggleFollowTeamPage(teamName, btn) {
     const idx = followedTeams.indexOf(teamName);
     if (idx > -1) { followedTeams.splice(idx, 1); if (btn) { btn.textContent = '🔔 关注球队'; btn.classList.remove('active'); } showToast('已取消关注 ' + teamName); }
