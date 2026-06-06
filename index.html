@@ -1555,6 +1555,8 @@ const DynamicPredictEngine = {
     computeAll(matches) { matches.forEach(m => this.computeOne(m, matches)); },
 
     computeOne(match, allMatches) {
+        // 使用自适应权重（如果有足够数据）
+        if (aiEvolutionLog.length >= 20) this.WEIGHTS = adaptiveWeights;
         const ht = TEAM_DB[match.home]; const at = TEAM_DB[match.away];
         // F1: 加权近期状态（最近场权重更高）
         const hFormScore = this._weightedForm(ht?.form || []);
@@ -2457,6 +2459,8 @@ function renderDetail(matchId){
     // P1: 自动校验已完成比赛的预测
     verifyAllPredictions();
     settleBets();
+    // AI自主进化：赛后复盘
+    if (m.status === 'finished' && m.homeGoals !== undefined) runAIPostMortem(m.id);
 }
 
 function renderEvents(m){
@@ -3758,6 +3762,68 @@ function checkSubscribedMatches() {
     });
 }
 
+// ======================== AI自主进化系统 ========================
+let aiEvolutionLog = JSON.parse(localStorage.getItem('fbs-ai-evolution') || '[]');
+function saveAIEvolution() { localStorage.setItem('fbs-ai-evolution', JSON.stringify(aiEvolutionLog.slice(0, 200))); }
+// 三AI独立复盘
+function runAIPostMortem(mid) {
+    const m = getMatch(mid); if (!m || m.status !== 'finished' || !m.homeGoals !== undefined) return;
+    if (!m.aiPredict || !m.predictionPlans) return;
+    const actual = m.homeGoals > m.awayGoals ? '胜' : m.homeGoals < m.awayGoals ? '负' : '平';
+    const plans = ['sijiliang', 'ruicai', 'zhiqiong'];
+    const planNames = { sijiliang: '稳基', ruicai: '睿财', zhiqiong: '智穹' };
+    plans.forEach(plan => {
+        const pp = m.predictionPlans[plan]; if (!pp) return;
+        const predicted = m.aiPredict.recommend;
+        const correct = predicted === actual;
+        // 记录每次复盘
+        aiEvolutionLog.push({ mid, plan, predicted, actual, correct, time: Date.now(), odds: m.odds.win, homeGoals: m.homeGoals, awayGoals: m.awayGoals });
+        if (aiEvolutionLog.length > 200) aiEvolutionLog.shift();
+    });
+    saveAIEvolution();
+    // 动态调整因子权重
+    adjustFactorWeights();
+}
+// 权重自适应
+let adaptiveWeights = JSON.parse(localStorage.getItem('fbs-adaptive-weights') || JSON.stringify(DynamicPredictEngine.WEIGHTS));
+function adjustFactorWeights() {
+    const recent = aiEvolutionLog.slice(-30);
+    if (recent.length < 10) return;
+    const correctCount = recent.filter(r => r.correct).length;
+    const accRate = correctCount / recent.length;
+    // 准确率<50%时微微调整权重
+    if (accRate < 0.5) {
+        const W = adaptiveWeights;
+        // 给H2H和排名因子加权重（更可靠的数据源）
+        W.h2h = Math.min(0.18, W.h2h + 0.01);
+        W.rank = Math.min(0.18, W.rank + 0.01);
+        W.injury = Math.max(0.03, W.injury - 0.01);
+        W.fatigue = Math.max(0.03, W.fatigue - 0.01);
+        localStorage.setItem('fbs-adaptive-weights', JSON.stringify(W));
+    }
+}
+// 应用自适应权重
+function getCurrentWeights() { return aiEvolutionLog.length >= 20 ? adaptiveWeights : DynamicPredictEngine.WEIGHTS; }
+// 进化状态报告
+function getAIEvolutionReport() {
+    const plans = ['sijiliang', 'ruicai', 'zhiqiong'];
+    const planNames = { sijiliang: '稳基', ruicai: '睿财', zhiqiong: '智穹' };
+    const report = {};
+    plans.forEach(plan => {
+        const entries = aiEvolutionLog.filter(e => e.plan === plan);
+        const total = entries.length;
+        if (!total) { report[plan] = { name: planNames[plan], total: 0, rate: 0, trend: '--' }; return; }
+        const correct = entries.filter(e => e.correct).length;
+        const rate = Math.round(correct / total * 100);
+        const recent10 = entries.slice(-10);
+        const recentCorrect = recent10.filter(e => e.correct).length;
+        const recentRate = Math.round(recentCorrect / recent10.length * 100);
+        report[plan] = { name: planNames[plan], total, rate, recentRate, trend: recentRate > rate ? '↗' : recentRate < rate ? '↘' : '→', improvement: recentRate - rate };
+    });
+    report.overall = { total: aiEvolutionLog.length, rate: Math.round(aiEvolutionLog.filter(e => e.correct).length / (aiEvolutionLog.length || 1) * 100), weightsAdapted: aiEvolutionLog.length >= 20 };
+    return report;
+}
+
 // 3. AI进化日志面板
 function renderAIEvolution() {
     const container = document.getElementById('aiEvolutionContent');
@@ -3792,7 +3858,7 @@ function renderAIEvolution() {
         <canvas id="aiEvoChart" width="360" height="140" style="width:100%;border-radius:12px;background:var(--card)"></canvas>
         <div style="font-size:.75rem;color:var(--gold);margin:8px 0 4px">按方案</div>
         ${planData.map(p => `<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:4px 0"><span>${p.name}</span><span style="color:var(--gold)">${p.rate}%</span><span style="color:var(--sub);font-size:.7rem">${p.count}次</span></div>`).join('')}
-        <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin-top:8px">🤖 AI持续学习用户反馈，准确率逐步提升</div>`;
+        <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin-top:8px">🤖 AI自主进化中 · 累计复盘${aiEvolutionLog.length}次 · 权重${aiEvolutionLog.length>=20?'已自适应':'收集中'}</div>`;
     setTimeout(() => {
         const canvas = document.getElementById('aiEvoChart'); if (!canvas) return;
         const ctx = canvas.getContext('2d'); const w = 360, h = 140;
