@@ -2283,6 +2283,73 @@ function loadFavorites(){try{const r=localStorage.getItem('fbs-favs-v3');return 
 function saveFavorites(){localStorage.setItem('fbs-favs-v3',JSON.stringify(favorites))}
 function loadUser(){try{const r=localStorage.getItem('fbs-user-v3');return r?JSON.parse(r):null}catch{return null}}
 function saveGuestData(){localStorage.setItem('fbs-guest-data',JSON.stringify({betSlip:betSlip.slice(0,10),favorites:favorites.slice(0,20),time:Date.now()}))}
+// 登录前页面记忆
+let loginReturnPage = null, loginReturnData = null;
+function promptLogin(feature) {
+    loginReturnPage = currentPage; loginReturnData = currentDetailId || null;
+    showToast('🔐 请先登录使用' + (feature || '此功能'));
+    setTimeout(() => navigateTo('login'), 500);
+}
+// 登录后跳转恢复
+function returnAfterLogin() {
+    const dest = loginReturnPage || 'home';
+    const data = loginReturnData;
+    loginReturnPage = null; loginReturnData = null;
+    if (dest === 'login' || dest === 'profile') navigateTo('home');
+    else if (dest === 'detail' && data) navigateTo('detail', data);
+    else navigateTo(dest);
+}
+// 账号绑定管理
+let accountBindings = JSON.parse(localStorage.getItem('fbs-bindings')||'{"phone":"","wechat":false,"qq":false,"apple":false}');
+function showAccountBindings() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-title').textContent = '🔗 账号绑定管理';
+    const b = accountBindings;
+    modal.querySelector('.modal-text').innerHTML = `
+        <div style="line-height:2;font-size:.82rem">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>📱 手机号</span><span style="color:${b.phone?'var(--green-bright)':'var(--sub)'}">${b.phone||'未绑定'}</span>
+            ${b.phone?`<span onclick="unbindAccount('phone')" style="color:var(--red-bright);cursor:pointer;font-size:.7rem">解绑</span>`:`<span onclick="bindPhone()" style="color:var(--gold);cursor:pointer;font-size:.7rem">绑定</span>`}
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>💬 微信</span><span style="color:${b.wechat?'var(--green-bright)':'var(--sub)'}">${b.wechat?'已绑定':'未绑定'}</span>
+            <span onclick="${b.wechat?'unbindAccount':'socialQuickLogin'}('${b.wechat?'wechat':'wechat'}')" style="color:${b.wechat?'var(--red-bright)':'var(--gold)'};cursor:pointer;font-size:.7rem">${b.wechat?'解绑':'绑定'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>🔵 QQ</span><span style="color:${b.qq?'var(--green-bright)':'var(--sub)'}">${b.qq?'已绑定':'未绑定'}</span>
+            <span onclick="${b.qq?'unbindAccount':'socialQuickLogin'}('${b.qq?'qq':'qq'}')" style="color:${b.qq?'var(--red-bright)':'var(--gold)'};cursor:pointer;font-size:.7rem">${b.qq?'解绑':'绑定'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>🍎 Apple</span><span style="color:${b.apple?'var(--green-bright)':'var(--sub)'}">${b.apple?'已绑定':'未绑定'}</span>
+            <span onclick="${b.apple?'unbindAccount':'socialQuickLogin'}('${b.apple?'apple':'apple'}')" style="color:${b.apple?'var(--red-bright)':'var(--gold)'};cursor:pointer;font-size:.7rem">${b.apple?'解绑':'绑定'}</span>
+        </div>
+        <p style="font-size:.68rem;color:var(--sub);margin-top:8px">⚠️ 至少保留一种登录方式</p></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
+}
+function bindPhone() { const ph = prompt('输入要绑定的手机号：'); if (ph && /^1[3-9]\d{9}$/.test(ph)) { accountBindings.phone = ph; localStorage.setItem('fbs-bindings', JSON.stringify(accountBindings)); showToast('✅ 手机号已绑定'); closeLogoutModal(); } else showToast('手机号格式不正确'); }
+function unbindAccount(type) { const count = Object.values(accountBindings).filter(v=>v).length; if (count <= 1) { showToast('至少保留一种登录方式'); return; } if (type==='phone') accountBindings.phone = ''; else accountBindings[type] = false; localStorage.setItem('fbs-bindings', JSON.stringify(accountBindings)); showToast('已解绑'); closeLogoutModal(); }
+// 设备管理模拟
+function showDeviceManagement() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-title').textContent = '📱 登录设备管理';
+    modal.querySelector('.modal-text').innerHTML = `
+        <div style="line-height:2;font-size:.78rem">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>📱 ${navigator.platform||'当前设备'}</span><span style="color:var(--green-bright)">● 当前</span><span style="font-size:.65rem;color:var(--sub)">${new Date().toLocaleDateString()}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>💻 桌面浏览器</span><span style="color:var(--red-bright);cursor:pointer;font-size:.7rem" onclick="this.parentElement.style.display='none';showToast('已下线')">下线</span>
+        </div>
+        <p style="font-size:.68rem;color:var(--sub);margin-top:8px">🔒 登录保护：陌生设备登录需验证手机号</p>
+        <label class="toggle-switch" style="float:right"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
+}
 function getUserRole(){const u=loadUser();return u?.role||'normal_user'}
 function isAdmin(){return getUserRole()==='super_admin'}
 // 权限守卫
@@ -3615,6 +3682,8 @@ function renderProfile(){
                 <div class="menu-item" onclick="navigateTo('simulator');currentTool='combo';renderSimulatorTeams()"><div class="menu-left"><span class="menu-icon">🔗</span><span class="menu-text">串关分析</span></div><span class="menu-arrow">›</span></div>
             </div>
             <div class="menu-section">
+                <div class="menu-item" onclick="showAccountBindings()"><div class="menu-left"><span class="menu-icon">🔗</span><span class="menu-text">账号绑定</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showDeviceManagement()"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showPrivacyDashboard()"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
@@ -4123,7 +4192,7 @@ function handleLoginSubmit() {
     const guestData = localStorage.getItem('fbs-guest-data');
     if (guestData) { try { const gd = JSON.parse(guestData); if (gd.betSlip) betSlip = [...betSlip, ...gd.betSlip]; if (gd.favorites) favorites = [...favorites, ...gd.favorites]; localStorage.removeItem('fbs-guest-data'); showToast('📥 游客数据已迁移'); } catch {} }
     showToast('✅ ' + level + ' 登录成功！');
-    setTimeout(() => navigateTo('profile'), 500);
+    setTimeout(() => { navigateTo('profile'); setTimeout(returnAfterLogin, 800); }, 500);
 }
 
 function socialQuickLogin(platform) {
@@ -5174,7 +5243,7 @@ let freePredCount = parseInt(localStorage.getItem('fbs-free-count') || '0');
 let freePredDate = localStorage.getItem('fbs-free-date') || '';
 function checkFreeLimit() { const today = new Date().toDateString(); if (freePredDate !== today) { freePredCount = 0; freePredDate = today; } return freePredCount < 10; }
 function incFreeCount() { freePredCount++; freePredDate = new Date().toDateString(); localStorage.setItem('fbs-free-count', freePredCount); localStorage.setItem('fbs-free-date', freePredDate); }
-function requirePremium(feature) { if (!isPremium) { showToast('👑 该功能需会员，每日限免' + (10 - freePredCount) + '次'); return false; } return true; }
+function requirePremium(feature) { if (!loadUser()) { promptLogin(feature); return false; } if (!isPremium) { if (!checkFreeLimit()) { showUpgradePrompt(feature); return false; } incFreeCount(); } return true; }
 function showUpgradePrompt(feature) { const modal = document.getElementById('logoutModal'); if (!modal) return; modal.querySelector('.modal-btn-cancel').style.display = ''; modal.querySelector('.modal-btn-cancel').textContent = '稍后'; modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal; modal.querySelector('.modal-title').textContent = '👑 升级会员解锁'; modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem;margin-bottom:8px">🔒</div><p style="color:var(--gold)">${feature} 为会员专属功能</p><p style="font-size:.78rem;color:var(--sub);margin:8px 0">免费用户每日限10次 · 会员无限制</p></div>`; modal.querySelector('.modal-btn-confirm').textContent = '立即升级'; modal.querySelector('.modal-btn-confirm').onclick = () => { closeLogoutModal(); showPremiumModal(); }; modal.classList.add('show'); }
 // 帮助与反馈中心
 const FAQ_DATA = [
