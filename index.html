@@ -4092,8 +4092,120 @@ function addWalletTx(type, amount, status, desc) {
     walletTransactions.unshift({ id: 'TX' + Date.now(), type, amount, status, desc, time: Date.now() });
     saveWalletTx();
 }
-function setWalletPin() { const pin = prompt('设置6位支付密码：'); if (!pin || !/^\d{6}$/.test(pin)) { showToast('密码需6位数字'); return; } walletPin = pin; localStorage.setItem('fbs-wallet-pin', pin); showToast('✅ 支付密码已设置'); }
-function verifyWalletPin() { if (!walletPin) { setWalletPin(); return !!walletPin; } const input = prompt('请输入6位支付密码：'); if (input !== walletPin) { showToast('❌ 密码错误'); return false; } return true; }
+// 支付密码完整流程
+let walletPinFlow = ''; // setup / change / reset / verify
+let walletPinTemp = '';
+function showWalletPinUI(action) {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    walletPinFlow = action; walletPinTemp = '';
+    modal.querySelector('.modal-btn-cancel').style.display = '';
+    modal.querySelector('.modal-btn-cancel').textContent = '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = () => { walletPinFlow = ''; closeLogoutModal(); };
+    if (action === 'setup') {
+        modal.querySelector('.modal-title').textContent = '🔐 设置支付密码';
+        modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">为保障资金安全，请设置6位数字支付密码</p>
+            <div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="position:absolute;opacity:0;width:0;height:0" oninput="onPinInput(this.value)" onfocus="this.setSelectionRange(6,6)">
+            <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击此处输入密码</div>
+            <div id="pinMsg" style="font-size:.73rem;color:var(--sub);text-align:center;margin-top:8px">请输入6位数字支付密码</div>`;
+        modal.querySelector('.modal-btn-confirm').textContent = '下一步';
+        modal.querySelector('.modal-btn-confirm').onclick = () => confirmPinSetup();
+    } else if (action === 'change') {
+        modal.querySelector('.modal-title').textContent = '🔑 修改支付密码';
+        modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">请输入原支付密码</p>
+            <div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" style="position:absolute;opacity:0;width:0;height:0" oninput="onPinChange(this.value)">
+            <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击输入原密码</div>
+            <div id="pinMsg" style="font-size:.73rem;color:var(--sub);text-align:center;margin-top:8px"></div>`;
+        modal.querySelector('.modal-btn-confirm').style.display = 'none';
+        walletPinTemp = 'old';
+    } else if (action === 'reset') {
+        modal.querySelector('.modal-title').textContent = '🔄 重置支付密码';
+        modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">验证绑定手机号后重置密码</p>
+            <input id="resetPhone" placeholder="输入绑定手机号" value="${loadUser()?.phone||''}" readonly style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center"><input id="resetCode" placeholder="输入验证码（演示：1234）" maxlength="6" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center"><button class="sim-btn" style="font-size:.75rem;margin:4px 0;width:100%" onclick="sendResetCode()">获取验证码</button>
+            <div id="pinMsg" style="font-size:.73rem;color:var(--sub);text-align:center;margin-top:8px"></div>`;
+        modal.querySelector('.modal-btn-confirm').textContent = '验证并重置';
+        modal.querySelector('.modal-btn-confirm').style.display = '';
+        modal.querySelector('.modal-btn-confirm').onclick = () => confirmPinReset();
+    }
+    modal.classList.add('show');
+    setTimeout(() => document.getElementById('pinInput')?.focus(), 300);
+}
+function onPinInput(val) {
+    const dots = document.querySelectorAll('#pinDots .pin-dot');
+    dots.forEach((d, i) => { d.textContent = val[i] ? '●' : ''; d.style.color = val[i] ? 'var(--gold)' : 'var(--border)'; });
+    if (val.length === 6) walletPinTemp = val;
+}
+function confirmPinSetup() {
+    if (!walletPinTemp || walletPinTemp.length < 6) { showToast('请输入6位密码'); return; }
+    walletPin = walletPinTemp; walletPinTemp = '';
+    localStorage.setItem('fbs-wallet-pin', walletPin);
+    closeLogoutModal(); showToast('✅ 支付密码设置成功');
+}
+function onPinChange(val) {
+    onPinInput(val);
+    if (val.length === 6) {
+        if (val !== walletPin) { document.getElementById('pinMsg').textContent = '❌ 原密码错误'; walletPinTemp = ''; return; }
+        walletPinTemp = 'verified';
+        const modal = document.getElementById('logoutModal');
+        modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--green-bright);margin-bottom:10px">✅ 验证通过，请输入新密码</p>
+            <div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" style="position:absolute;opacity:0;width:0;height:0" oninput="onNewPinInput(this.value)">
+            <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击输入新密码</div>
+            <div id="pinMsg" style="font-size:.73rem;color:var(--sub);text-align:center;margin-top:8px"></div>`;
+        setTimeout(() => document.getElementById('pinInput')?.focus(), 300);
+    }
+}
+function onNewPinInput(val) {
+    onPinInput(val);
+    if (val.length === 6) {
+        walletPin = val;
+        localStorage.setItem('fbs-wallet-pin', walletPin);
+        closeLogoutModal(); showToast('✅ 支付密码修改成功');
+    }
+}
+function sendResetCode() { showToast('📱 验证码：1234（演示）'); }
+function confirmPinReset() {
+    const code = document.getElementById('resetCode')?.value;
+    if (code !== '1234') { showToast('验证码错误（演示：1234）'); return; }
+    walletPin = ''; walletPinTemp = '';
+    closeLogoutModal();
+    showWalletPinUI('setup');
+}
+function verifyWalletPin() {
+    return new Promise(resolve => {
+        if (!walletPin) { showWalletPinUI('setup'); resolve(false); return; }
+        const modal = document.getElementById('logoutModal'); if (!modal) { resolve(false); return; }
+        walletPinTemp = '';
+        modal.querySelector('.modal-btn-cancel').style.display = '';
+        modal.querySelector('.modal-btn-cancel').textContent = '取消';
+        modal.querySelector('.modal-btn-cancel').onclick = () => { walletPinTemp = ''; closeLogoutModal(); resolve(false); };
+        modal.querySelector('.modal-title').textContent = '🔐 验证支付密码';
+        modal.querySelector('.modal-text').innerHTML = `<div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" style="position:absolute;opacity:0;width:0;height:0" oninput="onVerifyPinInput(this.value, (OK)=>{closeLogoutModal();resolve(OK)})">
+            <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击输入支付密码</div>
+            <div id="pinMsg" style="font-size:.73rem;color:var(--red-bright);text-align:center;margin-top:8px;display:none">❌ 密码错误</div>
+            <div style="font-size:.68rem;color:var(--gold);text-align:center;margin-top:8px;cursor:pointer" onclick="closeLogoutModal();showWalletPinUI(\'reset\')">忘记密码？</div>`;
+        modal.querySelector('.modal-btn-confirm').style.display = 'none';
+        modal.classList.add('show');
+        setTimeout(() => document.getElementById('pinInput')?.focus(), 300);
+    });
+}
+function onVerifyPinInput(val, callback) {
+    onPinInput(val);
+    if (val.length === 6) {
+        if (val === walletPin) { callback(true); } else { document.getElementById('pinMsg').style.display = ''; document.getElementById('pinInput').value = ''; walletPinTemp = ''; updateDots(''); }
+    }
+}
+function updateDots(val) { const dots = document.querySelectorAll('#pinDots .pin-dot'); dots.forEach((d, i) => { d.textContent = val[i] ? '●' : ''; }); }
+// Pin dot CSS
+function addPinStyles() {
+    if (document.getElementById('pin-dot-style')) return;
+    const s = document.createElement('style'); s.id = 'pin-dot-style';
+    s.textContent = '.pin-dot{width:36px;height:44px;border-radius:8px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all .2s}';
+    document.head.appendChild(s);
+}
+document.addEventListener('DOMContentLoaded', addPinStyles);
 let walletTab = 'home';
 function renderWallet() {
     const container = document.getElementById('walletContent'); if (!container) return;
@@ -4128,7 +4240,8 @@ function renderWallet() {
         html += `<div style="max-height:350px;overflow-y:auto">${walletTransactions.map(t => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.75rem"><div><span style="font-size:.82rem">${t.type==='充值'?'📥':t.type==='提现'?'📤':t.type==='消费'?'💳':'🔄'}</span></div><div style="flex:1;margin-left:8px"><div>${t.desc||t.type}</div><div style="font-size:.65rem;color:var(--sub)">${t.id} · ${new Date(t.time).toLocaleString()}</div></div><div style="text-align:right"><div style="color:${t.type==='充值'?'var(--green-bright)':'var(--red-bright)'};font-weight:700">${t.type==='充值'?'+':'-'}¥${t.amount.toFixed(2)}</div><div style="font-size:.65rem;color:${t.status==='成功'?'var(--green-bright)':'var(--sub)'}">${t.status||'成功'}</div></div></div>`).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无交易记录</div>'}</div>`;
     } else if (walletTab === 'security') {
         html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔐 支付安全</div>
-            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="setWalletPin()">🔑 支付密码（${walletPin?'已设置':'未设置'}）</button>
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="showWalletPinUI('${walletPin?'change':'setup'}')">🔑 支付密码（${walletPin?'已设置→修改':'未设置→去设置'}）</button>
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="showWalletPinUI('reset')">🔄 忘记密码</button>
             <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="showToast('📱 指纹/面容支付仅在移动端可用')">👆 指纹/面容支付</button>
             <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>单笔限额</span><span style="float:right;color:var(--gold)">¥5000</span></div>
             <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>每日限额</span><span style="float:right;color:var(--gold)">¥20000</span></div>
@@ -4136,8 +4249,8 @@ function renderWallet() {
     }
     html += '</div>'; container.innerHTML = html;
 }
-function doTopup(amount, bonus) {
-    if (!verifyWalletPin()) return;
+async function doTopup(amount, bonus) {
+    const ok = await verifyWalletPin(); if (!ok) return;
     walletBalance += amount + bonus;
     walletFrozen += bonus;
     addWalletTx('充值', amount, '成功', bonus > 0 ? `充值¥${amount} 赠送¥${bonus}` : `充值¥${amount}`);
@@ -4146,12 +4259,12 @@ function doTopup(amount, bonus) {
     renderWallet();
 }
 function customTopup() { const amt = parseFloat(prompt('输入自定义充值金额（最低10元）：')); if (amt >= 10) doTopup(amt, Math.floor(amt / 10) * 5); else showToast('最低充值10元'); }
-function doWithdraw() {
+async function doWithdraw() {
     const amt = parseFloat(document.getElementById('withdrawAmt')?.value);
     if (!amt || amt < 10) { showToast('最低提现10元'); return; }
     if (amt > 5000) { showToast('单日提现上限¥5000'); return; }
     if (amt > walletBalance) { showToast('余额不足'); return; }
-    if (!verifyWalletPin()) return;
+    const ok = await verifyWalletPin(); if (!ok) return;
     const fee = Math.max(1, Math.min(20, Math.round(amt * 0.01)));
     walletBalance -= amt;
     walletFrozen += amt - fee;
