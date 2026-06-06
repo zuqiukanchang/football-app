@@ -3745,6 +3745,7 @@ function renderProfile(){
                 <div class="profile-phone">${user.phone}<span style="font-size:.65rem;color:var(--sub);margin-left:6px;cursor:pointer" onclick="editNickname()">✏️</span></div>
                 <div class="level-badge">🏅 ${user.level}</div>
                 ${isPremium?'<div style="display:inline-block;margin-left:6px;padding:4px 10px;border-radius:10px;font-size:.7rem;background:linear-gradient(135deg,#C9A84C,#8B6914);color:#1A0A0A;font-weight:700">👑 会员</div>':''}
+                ${getFoundingBadge()}
                 ${isPremium ? `<div class="expire-bar"><div class="expire-fill" style="width:${expiryPct}%"></div></div><div class="expire-text">剩余 ${expiryDays} 天 · ${expiryDateStr} 到期</div>` : ''}
                 <div class="profile-btn-row">
                     <button class="btn-outline" onclick="showPremiumModal()">${isPremium?'续费':'开通会员'}</button>
@@ -4918,8 +4919,10 @@ async function initApp(){
     // P3: 消息通知生成
     generateNotifications();
     showPromoBanner();
+    showFoundingBanner();
     checkMemberExpiry();
     sendLegacyNotification();
+    checkFoundingMilestone();
 
     setTimeout(()=>{
         if (location.hash && location.hash !== '#home') restoreFromHash();
@@ -5600,6 +5603,8 @@ function showPremiumModal() {
         ${isLegacyUser?`<div style="background:rgba(201,168,76,.08);border-radius:10px;padding:10px;margin-bottom:10px;text-align:center"><div style="color:var(--gold);font-weight:700">🏆 老用户专属权益</div><div style="font-size:.73rem;color:var(--sub)">永久原价续费 · 钻石升级5折 · 已赠送1月钻石体验</div></div>`:''}
         ${renderTier('gold', PRICING.gold)}${renderTier('diamond', PRICING.diamond)}
         <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin:6px 0">💡 连续包月更优惠：黄金¥48/月 · 钻石¥128/月</div>
+        ${getFoundingInfo().isActive?`<div style="background:rgba(255,215,0,.08);border-radius:10px;padding:10px;margin:6px 0;text-align:center;font-size:.7rem"><span style="color:#FFD700;font-weight:700">🏆 创始会员招募</span> · 距截止${getFoundingInfo().remaining}天 · 永久低价+创始徽章+年赠2张周卡</div>`:''}
+        <div style="font-size:.63rem;color:var(--sub);text-align:center;margin-top:4px">📢 价格说明：为提供更优质的AI分析服务和更快的数据更新，我们持续投入研发资源。创始期注册的用户永久享受当前价格。</div>
         <div style="text-align:center;margin:10px 0;font-size:.7rem;color:var(--sub)">或输入邀请码激活</div><input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"><div style="display:flex;gap:4px;margin-top:4px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💚</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💙</button></div></div>`;
         modal.querySelector('.modal-btn-confirm').textContent = '激活邀请码';
         modal.querySelector('.modal-btn-confirm').onclick = () => {
@@ -5727,6 +5732,53 @@ function checkMemberExpiry() {
         localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier');
         showToast('会员已到期，续费享优惠', 4000);
     }
+}
+// 创始期管理
+const FOUNDING_START = new Date('2026-06-06').getTime(); // 创始期起始
+const FOUNDING_DAYS = 7; // 创始期持续天数
+function getFoundingInfo() {
+    const now = Date.now();
+    const elapsed = Math.floor((now - FOUNDING_START) / 86400000);
+    const remaining = Math.max(0, FOUNDING_DAYS - elapsed);
+    const isActive = remaining > 0 && elapsed >= 0;
+    const day = isActive ? elapsed + 1 : FOUNDING_DAYS + 1;
+    let milestone = '';
+    if (day === 1) milestone = '创始老用户招募中，7天内注册永久享受专属低价';
+    else if (day === 5) milestone = '距离老用户截止还有最后2天';
+    else if (day === 7) milestone = '最后12小时！错过永久恢复原价';
+    else if (day === 8) milestone = '创始老用户招募结束，感谢所有支持者';
+    return { isActive, remaining, day, milestone, elapsed };
+}
+function isFoundingMember() { return localStorage.getItem('fbs-reg-time') && parseInt(localStorage.getItem('fbs-reg-time')) >= FOUNDING_START && parseInt(localStorage.getItem('fbs-reg-time')) <= FOUNDING_START + FOUNDING_DAYS * 86400000; }
+// 创始倒计时横幅
+function showFoundingBanner() {
+    const info = getFoundingInfo();
+    if (!info.isActive || isPremium) return;
+    const existing = document.getElementById('foundingBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'foundingBanner';
+    banner.style.cssText = 'margin:8px 16px;padding:14px 16px;background:linear-gradient(135deg,#3D1A1A,#5C2020,#2C1010);border-radius:14px;text-align:center;cursor:pointer;border:1px solid var(--gold);animation:breathGold 2s ease-in-out infinite';
+    banner.innerHTML = `<div style="font-size:.85rem;color:var(--gold);font-weight:700">🏆 创始会员招募中</div><div style="font-size:.73rem;color:var(--sub);margin:4px 0">距截止还有 <strong style="color:var(--red-bright);font-size:1rem">${info.remaining}</strong> 天 · 永久低价+创始徽章+年赠周卡</div><div style="font-size:.65rem;color:var(--gold-dim)">点击了解创始权益 →</div>`;
+    banner.onclick = showPremiumModal;
+    const home = document.getElementById('page-home');
+    const featured = document.getElementById('featuredBanner');
+    if (home && featured) featured.parentNode.insertBefore(banner, featured);
+}
+// 创始里程碑通知
+function checkFoundingMilestone() {
+    const info = getFoundingInfo();
+    const key = 'fbs-milestone-day' + info.day;
+    if (!info.milestone || localStorage.getItem(key)) return;
+    const notif = { _key: 'milestone_' + Date.now(), mid: '', team: '', type: 'system', msg: '🏆 ' + info.milestone, time: Date.now(), read: false };
+    notificationHistory.unshift(notif); unreadCount++;
+    saveNotifications(); updateMsgBadge();
+    localStorage.setItem(key, 'true');
+}
+// 创始徽章显示
+function getFoundingBadge() {
+    if (!isFoundingMember()) return '';
+    return '<span style="display:inline-block;margin-left:6px;padding:3px 8px;border-radius:8px;font-size:.65rem;background:linear-gradient(135deg,#FFD700,#C9A84C);color:#1A0A0A;font-weight:700;animation:cdPulse 2s ease-in-out infinite">🏆 创始会员</span>';
 }
 // 赛事促销检测
 function getActivePromo() {
