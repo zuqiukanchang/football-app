@@ -4097,9 +4097,114 @@ let walletPinFlow = ''; // setup / change / reset / verify
 let walletPinTemp = '';
 let pinErrorCount = parseInt(localStorage.getItem('fbs-pin-errors') || '0');
 let pinLockUntil = parseInt(localStorage.getItem('fbs-pin-lock') || '0');
-function isPinLocked() { if (Date.now() < pinLockUntil) { const mins = Math.ceil((pinLockUntil - Date.now()) / 60000); showToast(`🔒 密码已锁定，${mins}分钟后重试`); return true; } if (Date.now() >= pinLockUntil && pinLockUntil > 0) { pinErrorCount = 0; pinLockUntil = 0; savePinState(); } return false; }
-function recordPinError() { pinErrorCount++; if (pinErrorCount >= 3) { pinLockUntil = Date.now() + 15 * 60000; showToast('🔒 连续3次错误，锁定15分钟', 4000); } savePinState(); }
+let pinDailyErrors = JSON.parse(localStorage.getItem('fbs-pin-daily') || '[]'); // [{time,count}]
+function isPinLocked() {
+    // 每日累计检查
+    const now = Date.now(); const dayAgo = now - 86400000;
+    pinDailyErrors = pinDailyErrors.filter(e => e.time > dayAgo);
+    const dailyTotal = pinDailyErrors.reduce((s, e) => s + e.count, 0);
+    if (dailyTotal >= 10) { showToast('🔒 24小时内累计10次错误，账户锁定24小时。请联系客服或使用手机号验证码解锁。', 5000); return true; }
+    // 连续锁定检查
+    if (Date.now() < pinLockUntil) { const mins = Math.ceil((pinLockUntil - Date.now()) / 60000); showToast(`🔒 密码已锁定，${mins}分钟后重试`, 3000); return true; }
+    if (Date.now() >= pinLockUntil && pinLockUntil > 0) { pinErrorCount = 0; pinLockUntil = 0; savePinState(); }
+    return false;
+}
+function recordPinError() {
+    pinErrorCount++; pinDailyErrors.push({ time: Date.now(), count: 1 });
+    localStorage.setItem('fbs-pin-daily', JSON.stringify(pinDailyErrors));
+    if (pinErrorCount >= 3) { pinLockUntil = Date.now() + 15 * 60000; showToast('🔒 连续3次错误，锁定15分钟', 4000); }
+    savePinState();
+}
+function unlockViaSMS() {
+    const code = prompt('输入手机验证码解锁（演示：1234）：');
+    if (code === '1234') { pinErrorCount = 0; pinLockUntil = 0; pinDailyErrors = []; savePinState(); localStorage.removeItem('fbs-pin-daily'); showToast('✅ 账户已解锁'); return true; }
+    showToast('验证码错误'); return false;
+}
 function savePinState() { localStorage.setItem('fbs-pin-errors', pinErrorCount); localStorage.setItem('fbs-pin-lock', pinLockUntil); }
+
+// 设备指纹
+function getDeviceFingerprint() {
+    const info = [navigator.platform, navigator.hardwareConcurrency, screen.width + 'x' + screen.height, navigator.language].join('|');
+    return btoa(info).slice(0, 16);
+}
+function isTrustedDevice() {
+    const trusted = localStorage.getItem('fbs-trusted-device');
+    const current = getDeviceFingerprint();
+    return trusted === current;
+}
+function trustDevice() { localStorage.setItem('fbs-trusted-device', getDeviceFingerprint()); showToast('✅ 设备已信任'); }
+
+// IP位置模拟检测
+function getSimulatedLocation() {
+    const hashes = ['北京', '上海', '广州', '深圳', '杭州', '成都'];
+    const idx = Math.abs(getDeviceFingerprint().split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % hashes.length;
+    return hashes[idx];
+}
+function isNewLocation() {
+    const lastLoc = localStorage.getItem('fbs-last-location');
+    const currentLoc = getSimulatedLocation();
+    localStorage.setItem('fbs-last-location', currentLoc);
+    return lastLoc && lastLoc !== currentLoc;
+}
+
+// 交易风控
+let frozenTx = JSON.parse(localStorage.getItem('fbs-frozen-tx') || '[]');
+let reviewQueue = JSON.parse(localStorage.getItem('fbs-review-queue') || '[]');
+function checkTransactionRisk(amount, type) {
+    if (amount > 2000) return { risk: 'high', action: 'require_sms', msg: '单笔超¥2000，需短信验证' };
+    if (isNewLocation()) return { risk: 'medium', action: 'require_device', msg: '检测到新地点登录，需设备验证' };
+    if (!isTrustedDevice()) return { risk: 'medium', action: 'require_trust', msg: '陌生设备，建议信任后再操作' };
+    return { risk: 'low', action: 'allow', msg: '' };
+}
+function freezeTransaction(txId, reason) {
+    frozenTx.push({ id: txId, reason, time: Date.now() });
+    localStorage.setItem('fbs-frozen-tx', JSON.stringify(frozenTx));
+    addAuditLog('冻结交易: ' + txId + ' - ' + reason);
+}
+function submitForReview(txId, amount, type) {
+    reviewQueue.unshift({ id: txId, amount, type, time: Date.now(), status: '待审核' });
+    localStorage.setItem('fbs-review-queue', JSON.stringify(reviewQueue.slice(0, 50)));
+    addAuditLog('提交人工审核: ' + txId);
+    showToast('📋 交易已提交人工审核，预计30分钟内完成', 3500);
+}
+// 应急响应
+let accountFrozen = localStorage.getItem('fbs-frozen') === 'true';
+function emergencyFreeze() {
+    if (!confirm('⚠️ 确认一键冻结账户？冻结后所有交易将被禁止。')) return;
+    accountFrozen = true; localStorage.setItem('fbs-frozen', 'true');
+    addAuditLog('紧急冻结账户');
+    showToast('🔒 账户已冻结，所有交易已停止。联系客服解冻。', 5000);
+}
+function emergencyUnfreeze() {
+    if (!walletPin) { showToast('请先验证支付密码'); return; }
+    const pin = prompt('输入支付密码解冻：');
+    if (pin !== walletPin) { showToast('密码错误'); return; }
+    accountFrozen = false; localStorage.removeItem('fbs-frozen');
+    addAuditLog('解冻账户');
+    showToast('✅ 账户已解冻');
+}
+// 交易撤销（5分钟内可撤销）
+function reverseTransaction(txId) {
+    const tx = walletTransactions.find(t => t.id === txId);
+    if (!tx) { showToast('交易不存在'); return; }
+    if (Date.now() - tx.time > 300000) { showToast('超过5分钟，无法撤销。请联系客服。'); return; }
+    if (tx.type === '充值') { walletBalance -= tx.amount; addWalletTx('退款', tx.amount, '已撤销', '撤销充值: ' + tx.desc); }
+    else if (tx.type === '消费') { walletBalance += tx.amount; addWalletTx('退款', tx.amount, '已撤销', '撤销消费: ' + tx.desc); }
+    tx.status = '已撤销';
+    saveWallet(); saveWalletTx();
+    addAuditLog('撤销交易: ' + txId);
+    showToast('✅ 交易已撤销，金额已退回');
+}
+// PIN定期更换提醒
+function checkPinAge() {
+    if (!walletPin) return;
+    const lastChange = parseInt(localStorage.getItem('fbs-pin-changed') || '0');
+    const daysSinceChange = (Date.now() - lastChange) / 86400000;
+    if (daysSinceChange > 90 && lastChange > 0) {
+        showToast('🔐 支付密码已使用' + Math.floor(daysSinceChange) + '天，建议更换以保障安全', 4000);
+    }
+}
+function markPinChanged() { localStorage.setItem('fbs-pin-changed', Date.now().toString()); }
 // 输入安全：过滤非数字+防粘贴
 function filterPinInput(input) {
     input.addEventListener('paste', e => e.preventDefault());
@@ -4115,6 +4220,7 @@ function showWalletPinUI(action) {
     if (action === 'setup') {
         modal.querySelector('.modal-title').textContent = '🔐 设置支付密码';
         modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">为保障资金安全，请设置6位数字支付密码</p>
+            <div style="background:rgba(212,42,42,.08);border-radius:8px;padding:8px;margin-bottom:10px;font-size:.68rem;color:var(--red-bright);text-align:left;line-height:1.6">⚠️ <strong>安全提示：</strong><br>• 请勿使用生日、手机号、连续数字（123456）<br>• 请勿在公共场合输入密码<br>• 官方不会以任何理由索要你的支付密码</div>
             <div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
             <input type="password" id="pinInput" maxlength="6" inputmode="numeric" pattern="[0-9]*" style="position:absolute;opacity:0;width:0;height:0" oninput="onPinInput(this.value)" onfocus="this.setSelectionRange(6,6)">
             <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击此处输入密码</div>
@@ -4150,7 +4256,7 @@ function onPinInput(val) {
 function confirmPinSetup() {
     if (!walletPinTemp || walletPinTemp.length < 6) { showToast('请输入6位密码'); return; }
     walletPin = walletPinTemp; walletPinTemp = '';
-    localStorage.setItem('fbs-wallet-pin', walletPin);
+    localStorage.setItem('fbs-wallet-pin', walletPin); markPinChanged();
     closeLogoutModal(); showToast('✅ 支付密码设置成功');
 }
 function onPinChange(val) {
@@ -4369,11 +4475,15 @@ function renderWallet() {
             <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>单笔限额</span><span style="float:right;color:var(--gold)">¥5000</span></div>
             <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>每日限额</span><span style="float:right;color:var(--gold)">¥20000</span></div>
             <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>异常交易提醒</span><span style="float:right;color:var(--green-bright)">已开启</span></div>
-            <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin-top:8px;line-height:1.6">🔐 HTTPS TLS 1.3 · SHA-256哈希 · 加盐防重放<br>GitHub Pages 强制HTTPS · HSTS已启用</div></div>`;
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0;background:var(--red-bright)!important;color:#fff" onclick="emergencyFreeze()">🚨 一键冻结账户</button>
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="emergencyUnfreeze()">🔓 解冻账户</button>
+            <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin-top:8px;line-height:1.6">🔐 HTTPS TLS 1.3 · SHA-256哈希 · 加盐防重放<br>GitHub Pages 强制HTTPS · HSTS已启用<br>7×24小时客服：service@chijinzutuan.com</div>
+            <div style="font-size:.63rem;color:var(--sub);text-align:center;margin-top:4px">📜 遵循《个人信息保护法》《网络安全法》· 数据最小化原则</div></div>`;
     }
     html += '</div>'; container.innerHTML = html;
 }
 async function doTopup(amount, bonus) {
+    if (accountFrozen) { showToast('🔒 账户已冻结，无法操作'); return; }
     const ok = await verifyWalletPin(); if (!ok) return;
     await securePinOperation(walletPin, 'topup_' + amount);
     walletBalance += amount + bonus;
