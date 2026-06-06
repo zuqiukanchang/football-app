@@ -5372,6 +5372,7 @@ async function initApp(){
     // P3: 消息通知生成
     generateNotifications();
     showPromoBanner();
+    showDayPassPromo();
     showFoundingBanner();
     checkMemberExpiry();
     sendLegacyNotification();
@@ -5851,7 +5852,7 @@ const LIFETIME_CODES = ['LIFETIME-GOLD', 'LIFETIME-DIA'];
 // 定价表
 const PRICING = {
     gold: { name: '👑 黄金会员', color: '#C9A84C', plans: { day: { price: 18, label: '天卡', tag: '⚡ 单日体验' }, month: { price: 68, label: '月卡', save: '立省466元/年' }, quarter: { price: 168, label: '季卡', save: '立省36元', tag: '🔥 大众热门' }, year: { price: 498, label: '年卡', save: '立省318元', tag: '⭐ 最划算' }, lifetime: { price: 2998, label: '终身', tag: '💎 永久' } } },
-    diamond: { name: '💎 钻石会员', color: '#4A90D9', plans: { day: { price: 58, label: '天卡', tag: '⚡ 单日深度' }, month: { price: 168, label: '月卡', save: '立省1428元/年' }, quarter: { price: 428, label: '季卡', save: '立省76元', tag: '🔥 专业首选' }, year: { price: 1198, label: '年卡', save: '立省818元', tag: '⭐ 终身性价比' }, lifetime: { price: 6998, label: '终身', tag: '🏆 限量', limit: '全球限量100000名' } } }
+    diamond: { name: '💎 钻石会员', color: '#4A90D9', plans: { day: { price: 58, label: '天卡', tag: '⚡ 单日深度' }, month: { price: 168, label: '月卡', save: '立省1428元/年' }, quarter: { price: 428, label: '季卡', save: '立省76元', tag: '🔥 专业首选' }, year: { price: 1198, label: '年卡', save: '立省818元', tag: '⭐ 终身性价比' }, lifetime: { price: 6998, label: '终身', tag: '🏆 限量', limit: `仅剩${getDiamondLifetimeRemaining()}名` } } }
 };
 let freePredCount = parseInt(localStorage.getItem('fbs-free-count') || '0');
 let freePredDate = localStorage.getItem('fbs-free-date') || '';
@@ -6052,7 +6053,7 @@ function showPremiumModal() {
     const accRate = report.overall?.rate || 68;
     if (isPremium) {
         const t = memberTier === 'diamond' ? PRICING.diamond : PRICING.gold;
-        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子+冷门预测+每日3场稳胆<br>✅ 凯利实时监控+5串1推荐+全量回测+批量模拟<br>✅ 极速数据10秒更新+历史赔率+资金流向<br>✅ 1v1专属客服+分析师咨询+每周内参':'✅ AI3终审预测+基础因子<br>✅ 凯利基础版+3串1+30天回测<br>✅ 实时数据1分钟更新<br>✅ 6小时优先客服'}</div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px"><span>🔄 自动续费（8折优惠）</span><label class="toggle-switch"><input type="checkbox" ${autoRenew?'checked':''} onchange="toggleAutoRenew()"><span class="toggle-slider"></span></label></div>${memberExpiry?`<div style="font-size:.73rem;color:var(--sub);margin-bottom:8px">📅 到期：${new Date(memberExpiry).toLocaleDateString()} · 剩余${Math.max(0,Math.ceil((memberExpiry-Date.now())/86400000))}天</div>`:''}${memberTier!=='diamond'?`<button class="sim-btn" style="width:100%;font-size:.75rem;margin-bottom:4px" onclick="upgradeMember('diamond','month')">🔄 升级钻石会员（补差价）</button>`:''}<button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
+        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥198/月)</span><br>✅ 冷门预测+每日3场稳胆 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥99/月)</span><br>✅ 凯利实时监控+5串1推荐 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥128/月)</span><br>✅ 极速数据10秒更新+历史赔率 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥88/月)</span><br>✅ 1v1专属客服+每周内参 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥158/月)</span>':'✅ AI3终审预测 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥98/月)</span><br>✅ 凯利基础版+3串1 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥68/月)</span><br>✅ 实时数据1分钟更新 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥38/月)</span><br>✅ 6小时优先客服 <span style="color:var(--gold-dim);font-size:.65rem">(市价¥28/月)</span>'}<div style="color:var(--green-bright);font-weight:700;margin-top:4px">💰 总价值 ¥${memberTier==='diamond'?'671':'232'}/月 → 仅 ¥${memberTier==='diamond'?'168':'68'}/月（节省${memberTier==='diamond'?'75%':'71%'}）</div></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px"><span>🔄 自动续费（8折优惠）</span><label class="toggle-switch"><input type="checkbox" ${autoRenew?'checked':''} onchange="toggleAutoRenew()"><span class="toggle-slider"></span></label></div>${memberExpiry?`<div style="font-size:.73rem;color:var(--sub);margin-bottom:8px">📅 到期：${new Date(memberExpiry).toLocaleDateString()} · 剩余${Math.max(0,Math.ceil((memberExpiry-Date.now())/86400000))}天</div>`:''}${memberTier!=='diamond'?`<button class="sim-btn" style="width:100%;font-size:.75rem;margin-bottom:4px" onclick="upgradeMember('diamond','month')">🔄 升级钻石会员（补差价）</button>`:''}<button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
         modal.querySelector('.modal-btn-confirm').textContent = '关闭';
         modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
     } else {
@@ -6075,12 +6076,21 @@ function showPremiumModal() {
         ${renderTier('gold', PRICING.gold)}${renderTier('diamond', PRICING.diamond)}
         <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin:6px 0">💡 连续包月更优惠：黄金¥48/月 · 钻石¥128/月</div>
         ${getFoundingInfo().isActive?`<div style="background:rgba(255,215,0,.08);border-radius:10px;padding:10px;margin:6px 0;text-align:center;font-size:.7rem"><span style="color:#FFD700;font-weight:700">🏆 创始会员招募</span> · 距截止${getFoundingInfo().remaining}天 · 永久低价+创始徽章+年赠2张周卡</div>`:''}
+        <!-- 竞品对比表 -->
+        <div style="background:var(--card);border-radius:10px;padding:10px;margin:10px 0;font-size:.65rem;line-height:1.8">
+        <div style="color:var(--gold);font-weight:700;text-align:center;margin-bottom:4px">📊 与市面同类产品对比</div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:2px;text-align:center">
+        <span style="text-align:left">功能</span><span style="color:var(--gold)">赤金足坛</span><span style="color:var(--sub)">竞彩A</span><span style="color:var(--sub)">数据B</span>
+        <span style="text-align:left">AI预测</span><span style="color:var(--green-bright)">三AI</span><span>单AI</span><span>无</span>
+        <span style="text-align:left">凯利分析</span><span style="color:var(--green-bright)">✓</span><span>✓</span><span>×</span>
+        <span style="text-align:left">串关推荐</span><span style="color:var(--green-bright)">✓</span><span>×</span><span>×</span>
+        <span style="text-align:left">月卡价格</span><span style="color:var(--gold)">¥68</span><span>¥98</span><span>¥128</span></div></div>
         <div style="font-size:.63rem;color:var(--sub);text-align:center;margin-top:4px">📢 价格说明：为提供更优质的AI分析服务和更快的数据更新，我们持续投入研发资源。创始期注册的用户永久享受当前价格。</div>
         <div style="text-align:center;margin:10px 0;font-size:.7rem;color:var(--sub)">或输入邀请码激活</div><input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"><div style="display:flex;gap:4px;margin-top:4px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💚</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💙</button></div></div>`;
         modal.querySelector('.modal-btn-confirm').textContent = '激活邀请码';
         modal.querySelector('.modal-btn-confirm').onclick = () => {
             const code = document.getElementById('vipCodeInput')?.value?.trim()?.toUpperCase();
-            if (DIAMOND_CODES.includes(code) || LIFETIME_CODES.includes(code)) { isPremium = true; memberTier = 'diamond'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'diamond'); setMemberPlan('diamond', LIFETIME_CODES.includes(code)?'lifetime':'year'); closeLogoutModal(); addAuditLog('VIP码激活钻石会员'); showToast('💎 钻石会员已激活！'); renderProfile(); }
+            if (DIAMOND_CODES.includes(code) || LIFETIME_CODES.includes(code)) { isPremium = true; memberTier = 'diamond'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'diamond'); setMemberPlan('diamond', LIFETIME_CODES.includes(code)?'lifetime':'year'); if(LIFETIME_CODES.includes(code))incrementDiaLifetime(); closeLogoutModal(); addAuditLog('VIP码激活钻石会员'); showToast('💎 钻石会员已激活！'); renderProfile(); }
             else if (VIP_CODES.includes(code)) { isPremium = true; memberTier = 'gold'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'gold'); setMemberPlan('gold', 'year'); closeLogoutModal(); addAuditLog('VIP码激活黄金会员'); showToast('👑 黄金会员已激活！'); renderProfile(); }
             else { showToast('❌ 邀请码无效，请点击上方方案选择或输入有效邀请码'); }
         };
@@ -6091,6 +6101,7 @@ function activateMember(tier, plan) {
     isPremium = true; memberTier = tier;
     localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', tier);
     setMemberPlan(tier, plan);
+    if (tier === 'diamond' && plan === 'lifetime') incrementDiaLifetime();
     const p = PRICING[tier].plans[plan];
     closeLogoutModal();
     addAuditLog('激活会员: ' + tier + '/' + plan);
@@ -6253,6 +6264,24 @@ function getFoundingBadge() {
     if (!isFoundingMember()) return '';
     return '<span style="display:inline-block;margin-left:6px;padding:3px 8px;border-radius:8px;font-size:.65rem;background:linear-gradient(135deg,#FFD700,#C9A84C);color:#1A0A0A;font-weight:700;animation:cdPulse 2s ease-in-out infinite">🏆 创始会员</span>';
 }
+// 周末天卡推广
+function isWeekend() { const d = new Date().getDay(); return d === 0 || d === 6; }
+function showDayPassPromo() {
+    if (!isWeekend() || isPremium) return;
+    const existing = document.getElementById('dayPassBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'dayPassBanner';
+    banner.style.cssText = 'margin:8px 16px;padding:10px 14px;background:linear-gradient(135deg,rgba(61,184,138,.15),rgba(61,184,138,.05));border-radius:12px;text-align:center;cursor:pointer;font-size:.73rem;border:1px solid var(--green-bright)';
+    banner.innerHTML = `<span style="color:var(--green-bright);font-weight:700">🎉 周末特惠</span> · 黄金天卡仅<strong style="color:var(--gold)">¥18</strong> · 钻石天卡<strong style="color:var(--gold)">¥58</strong> · 点击体验`;
+    banner.onclick = showPremiumModal;
+    const home = document.getElementById('page-home');
+    const featured = document.getElementById('featuredBanner');
+    if (home && featured) featured.parentNode.insertBefore(banner, featured);
+}
+// 钻石终身限量
+function getDiamondLifetimeRemaining() { return Math.max(0, 1000 - parseInt(localStorage.getItem('fbs-dia-lifetime-sold') || '0')); }
+function incrementDiaLifetime() { const sold = parseInt(localStorage.getItem('fbs-dia-lifetime-sold') || '0') + 1; localStorage.setItem('fbs-dia-lifetime-sold', sold); }
 // 赛事促销检测
 function getActivePromo() {
     const now = new Date();
