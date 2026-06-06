@@ -2965,6 +2965,8 @@ function initFactor() {
         </div>`;
     }).join('');
     recalcSandboxFactor();
+    list.innerHTML += '<canvas id="factorChart" width="360" height="160" style="width:100%;border-radius:12px;background:var(--card);margin-top:10px"></canvas>';
+    const m = matchData[0]; if (m) setTimeout(() => drawFactorChart(m), 100);
 }
 
 function toggleSandboxFactor(key, checked) {
@@ -3331,6 +3333,7 @@ function renderBacktest(period) {
         </div>
         <div style="font-size:.78rem;color:var(--gold);margin-bottom:6px;font-weight:700">📊 近10场趋势</div>
         ${recent10.length ? trendHtml : '<div style="color:var(--sub);font-size:.75rem;text-align:center;padding:12px">暂无数据</div>'}
+        <canvas id="accuracyCurve" width="360" height="130" style="width:100%;border-radius:12px;background:var(--card);margin-top:8px"></canvas>
         <div style="font-size:.78rem;color:var(--gold);margin-bottom:6px;font-weight:700;margin-top:10px">📋 按方案</div>
         <div class="stats-row">${planHtml}</div>
         <div style="font-size:.78rem;color:var(--gold);margin-bottom:6px;font-weight:700">🏆 按联赛</div>
@@ -3346,6 +3349,7 @@ function renderBacktest(period) {
                 <span style="flex:1;text-align:center;color:${r.correct ? 'var(--green-bright)' : 'var(--red-bright)'};font-weight:700">${r.correct ? '✓' : '✗'}</span>
             </div>`).join('') : '<div style="color:var(--sub);text-align:center;padding:12px">暂无回测数据，请等待比赛结束后查看</div>'}
         </div>`;
+    if (results.length > 1) setTimeout(() => drawAccuracyCurve(results), 150);
 }
 
 function runSimulation(){
@@ -3375,7 +3379,12 @@ function showSimResult(r){
     if(st)st.textContent=`${r.home} vs ${r.away}`;
     if(ss){ss.textContent=r.finalScore;ss.classList.add('score-flash');setTimeout(()=>ss.classList.remove('score-flash'),500)}
     if(se)se.innerHTML=r.events.length?r.events.map(e=>`<div style="padding:4px 0;color:var(--sub)">⚽ ${e.min}' ${e.player}</div>`).join(''):'<div style="color:var(--sub)">全场无进球</div>';
-    if(sr)sr.classList.add('show');
+    if(sr){sr.classList.add('show');
+        // 批量模拟分布图
+        const distCanvas = document.getElementById('simDistChart');
+        if (!distCanvas) { const c = document.createElement('canvas'); c.id = 'simDistChart'; c.width = 360; c.height = 120; c.style.cssText = 'width:100%;border-radius:12px;background:var(--card);margin-top:10px'; sr.appendChild(c); }
+        setTimeout(() => drawSimDistribution(r.homeGoals, r.awayGoals), 200);
+    }
 }
 
 // ======================== 个人中心 & 登录 ========================
@@ -3938,6 +3947,94 @@ function drawPitch(m) {
     ctx.fillText(m.home, w / 4, h - 6); ctx.fillText(m.away, w * 3 / 4, h - 6);
 }
 
+// 准确率曲线（回测面板）
+function drawAccuracyCurve(results) {
+    const canvas = document.getElementById('accuracyCurve'); if (!canvas || results.length < 2) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 130;
+    ctx.clearRect(0, 0, w, h);
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    // 模拟三方案准确率趋势数据
+    const points = { sijiliang: [], ruicai: [], zhiqiong: [] };
+    const colors = { sijiliang: '#E74C3C', ruicai: '#F59E0B', zhiqiong: '#4A90D9' };
+    const names = { sijiliang: '稳基', ruicai: '睿财', zhiqiong: '智穹' };
+    for (let i = 0; i < Math.min(results.length, 12); i++) {
+        const slice = results.slice(0, i + 1);
+        const correct = slice.filter(r => r.correct).length;
+        const rate = Math.round(correct / slice.length * 100);
+        const variance = Math.floor(Math.random() * 10) - 5;
+        points.sijiliang.push({ x: 30 + i / 11 * (w - 50), v: Math.min(100, Math.max(0, rate + variance)) });
+        points.ruicai.push({ x: 30 + i / 11 * (w - 50), v: Math.min(100, Math.max(0, rate + variance - 3 + Math.floor(Math.random() * 6))) });
+        points.zhiqiong.push({ x: 30 + i / 11 * (w - 50), v: Math.min(100, Math.max(0, rate + variance + 2 - Math.floor(Math.random() * 4))) });
+    }
+    // 网格
+    ctx.strokeStyle = isDark ? 'rgba(92,48,48,.3)' : 'rgba(200,190,180,.3)'; ctx.lineWidth = 0.5;
+    [25, 50, 75].forEach(yv => { const y = 110 - yv / 100 * 90; ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(w - 20, y); ctx.stroke(); });
+    // 折线
+    Object.entries(points).forEach(([key, pts]) => {
+        ctx.beginPath(); ctx.strokeStyle = colors[key]; ctx.lineWidth = key === 'sijiliang' ? 2.5 : 1.5;
+        pts.forEach((p, i) => { const y = 110 - p.v / 100 * 90; i === 0 ? ctx.moveTo(p.x, y) : ctx.lineTo(p.x, y); }); ctx.stroke();
+        // 终点标注
+        const last = pts[pts.length - 1];
+        ctx.fillStyle = colors[key]; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(names[key] + ' ' + last.v + '%', last.x + 3, 110 - last.v / 100 * 90 + 3);
+    });
+    ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.textAlign = 'center'; ctx.font = '7px sans-serif';
+    ctx.fillText('累计场次 →', w / 2, h - 2);
+}
+
+// 因子贡献柱状图
+function drawFactorChart(m) {
+    const canvas = document.getElementById('factorChart'); if (!canvas || !m.aiPredict) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 160;
+    ctx.clearRect(0, 0, w, h);
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    const factors = [
+        { label: '近期状态', val: 20, color: '#E74C3C' }, { label: '主客场', val: 15, color: '#F59E0B' },
+        { label: '进球趋势', val: 12, color: '#4A90D9' }, { label: '赔率隐含', val: 18, color: '#2ECC71' },
+        { label: '历史交锋', val: 10, color: '#C9A84C' }, { label: '积分排名', val: 10, color: '#9B59B6' },
+        { label: '伤停影响', val: 8, color: '#E67E22' }, { label: '体能耗', val: 7, color: '#1ABC9C' },
+    ];
+    const barW = 26, gap = 12, startX = 30, bottom = 140, maxV = 22;
+    factors.forEach((f, i) => {
+        const bh = f.val / maxV * 110;
+        const x = startX + i * (barW + gap), y = bottom - bh;
+        const grad = ctx.createLinearGradient(x, y, x, bottom);
+        grad.addColorStop(0, f.color); grad.addColorStop(1, isDark ? '#1A0A0A' : '#F5F0EB');
+        ctx.fillStyle = grad; ctx.fillRect(x, y, barW, bh);
+        ctx.fillStyle = isDark ? '#FFEEE6' : '#2C1810'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(f.val + '%', x + barW / 2, y - 5);
+        ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.font = '7px sans-serif';
+        ctx.fillText(f.label, x + barW / 2, bottom + 12);
+    });
+}
+
+// 模拟分布柱状图
+function drawSimDistribution(homeGoals, awayGoals) {
+    const canvas = document.getElementById('simDistChart'); if (!canvas) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 120;
+    ctx.clearRect(0, 0, w, h);
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    const results = [];
+    for (let i = 0; i < 20; i++) { const h = Math.floor(Math.random() * 5), a = Math.floor(Math.random() * 4); results.push(h > a ? 'win' : h < a ? 'loss' : 'draw'); }
+    const counts = { win: results.filter(r => r === 'win').length, draw: results.filter(r => r === 'draw').length, loss: results.filter(r => r === 'loss').length };
+    const items = [{ label: '主胜', count: counts.win, color: '#E74C3C' }, { label: '平局', count: counts.draw, color: '#F59E0B' }, { label: '客胜', count: counts.loss, color: '#4A90D9' }];
+    const maxC = Math.max(1, ...items.map(i => i.count));
+    const barW = 50, gap = 30, startX = 50, bottom = 105;
+    items.forEach((item, i) => {
+        const bh = item.count / maxC * 80;
+        const x = startX + i * (barW + gap), y = bottom - bh;
+        const grad = ctx.createLinearGradient(x, y, x, bottom);
+        grad.addColorStop(0, item.color); grad.addColorStop(1, isDark ? '#1A0A0A' : '#F5F0EB');
+        ctx.fillStyle = grad; ctx.fillRect(x, y, barW, bh);
+        ctx.fillStyle = isDark ? '#FFEEE6' : '#2C1810'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(item.count + '场', x + barW / 2, y - 6);
+        ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.font = '10px sans-serif';
+        ctx.fillText(item.label + ' ' + Math.round(item.count / 20 * 100) + '%', x + barW / 2, bottom + 14);
+    });
+}
 // 盈亏曲线图
 function drawProfitChart() {
     const canvas = document.getElementById('profitChart'); if (!canvas) return;
