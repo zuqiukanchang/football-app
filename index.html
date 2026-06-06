@@ -1575,7 +1575,7 @@ const DynamicPredictEngine = {
 
     // F5: 历史交锋因子
     _h2hFactor(home, away) {
-        const key = home + '-' + away;
+        const key = h2hKey(home, away);
         const h2h = H2H_DB[key];
         if (!h2h || h2h.total < 2) return 50; // 无数据则中性
         const homeWinRate = h2h.homeWins / h2h.total;
@@ -1660,19 +1660,20 @@ const DynamicPredictEngine = {
         const direction = match.aiPredict.recommend;
         const stars = '★'.repeat(match.aiPredict.stars) + '☆'.repeat(5 - match.aiPredict.stars);
         let score, hf, tg;
-        if (wp > 52) { score = '2:1 / 1:0 / 3:1'; hf = wp > 60 ? '胜胜' : '平胜'; tg = '2-3球'; }
-        else if (wp > 42) { score = '1:1 / 1:0 / 2:1'; hf = '平平'; tg = '1-2球'; }
-        else if (dp > 38) { score = '1:1 / 0:0 / 2:2'; hf = '平平'; tg = '1-3球'; }
-        else if (lp > 42) { score = '0:1 / 1:2 / 0:2'; hf = lp > 52 ? '负负' : '平负'; tg = '1-3球'; }
-        else { score = '1:0 / 0:0 / 0:1'; hf = '平胜'; tg = '0-2球'; }
+        const maxP = Math.max(wp, dp, lp);
+        if (direction === '胜') { score = wp > 52 ? '2:1 / 1:0 / 3:1' : '1:0 / 2:1 / 1:1'; hf = wp > 55 ? '胜胜' : '平胜'; tg = wp > 50 ? '2-3球' : '1-2球'; }
+        else if (direction === '平') { score = '1:1 / 0:0 / 2:2'; hf = '平平'; tg = '1-3球'; }
+        else { score = lp > 45 ? '0:1 / 1:2 / 0:2' : '1:1 / 0:0 / 0:1'; hf = lp > 50 ? '负负' : '平负'; tg = '1-3球'; }
         return { direction: direction + ' ' + stars, score, halffull: hf, totalGoals: tg };
     },
     _buildRuicai(match, wp, dp, lp) {
         const o = match.odds;
-        const calc = (p, odd) => { const ev = p / 100 * odd - 1; const k = Math.max(0, ev / (odd - 1)); return { prob: (p).toFixed(1) + '%', ev: (ev > 0 ? '+' : '') + ev.toFixed(2), kelly: (k * 100).toFixed(1) + '%', amt: Math.round(1000 * k) + '元' }; };
+        const calc = (p, odd) => { const dp = p / 100; const ev = dp * odd - 1; const k = Math.max(0, ev / ((odd - 1) || 1)); return { prob: p.toFixed(1) + '%', ev: (ev > 0 ? '+' : '') + ev.toFixed(2), kelly: (k * 100).toFixed(1) + '%', amt: Math.round(1000 * k) + '元' }; };
         const w = calc(wp, o.win), d = calc(dp, o.draw), l = calc(lp, o.loss);
+        const best = wp >= dp && wp >= lp ? w : dp >= lp ? d : l;
+        const bestLabel = wp >= dp && wp >= lp ? '主胜' : dp >= lp ? '平局' : '客胜';
         const rows = [{ label: '主胜', odds: o.win.toFixed(2), prob: w.prob, ev: w.ev }, { label: '平局', odds: o.draw.toFixed(2), prob: d.prob, ev: d.ev }, { label: '客胜', odds: o.loss.toFixed(2), prob: l.prob, ev: l.ev }];
-        return { rows, kelly: w.kelly, suggest: '建议投注 ' + w.amt };
+        return { rows, kelly: best.kelly, suggest: '建议投注 ' + bestLabel + ' ' + best.amt };
     },
     _buildZhiqiong(match, wp, dp, lp, factors) {
         return { bars: [{ label: '主胜', pct: wp }, { label: '平局', pct: dp }, { label: '客胜', pct: lp }], factors: factors.slice(0, 6), model: 'AI v4.5.0 · 8因子', confidence: (match.aiPredict.stars >= 4 ? '93' : match.aiPredict.stars >= 3 ? '86' : '74') + '%' };
@@ -1956,6 +1957,8 @@ let predictionHistory = JSON.parse(localStorage.getItem('fbs-pred-history') || '
 function saveFollows() { localStorage.setItem('fbs-follows', JSON.stringify(followedTeams)); }
 function savePredHistory() { localStorage.setItem('fbs-pred-history', JSON.stringify(predictionHistory.slice(0, 100))); }
 
+// H2H键统一排序
+function h2hKey(home, away) { return [home, away].sort().join('-'); }
 // ======================== P1 预测追踪系统 ========================
 function autoRecordPrediction(m) {
     if (!m || !m.aiPredict) return;
@@ -2067,7 +2070,7 @@ function clearTimers(category) { timers[category].forEach(clearInterval); timers
 function clearAllTimers() { Object.keys(timers).forEach(k => clearTimers(k)); }
 // 错误边界
 function safeRender(fn, fallback) { try { return fn(); } catch(e) { console.error('[App] render error:', e); return typeof fallback === 'function' ? fallback(e) : (fallback || '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">渲染出错</div><div class="empty-state-desc">请刷新页面重试</div></div>'); } }
-let betSlip=loadBetSlip(),favorites=loadFavorites();
+let simulatedScores={},betSlip=loadBetSlip(),favorites=loadFavorites();
 let userBalance=parseFloat(localStorage.getItem('fbs-balance')||'10000');
 let betHistory=JSON.parse(localStorage.getItem('fbs-bet-history')||'[]');
 
@@ -2423,7 +2426,7 @@ function renderStats(m){
 // ======================== 详情页 — H2H 交锋面板 ========================
 function renderH2H(m) {
     const panel = $('#panel-h2h'); if (!panel) return;
-    const key = m.home + '-' + m.away;
+    const key = h2hKey(m.home, m.away);
     const h2h = H2H_DB[key];
     if (!h2h) { panel.innerHTML = '<div class="empty-state info" style="margin:16px 0"><div class="empty-state-icon">🤝</div><div class="empty-state-title">暂无交锋数据</div></div>'; return; }
     const formDots = h2h.last5.map(s => {
@@ -2482,7 +2485,7 @@ async function generateAIPreview(m) {
 
 function buildAIPrompt(m) {
     const ht = TEAM_DB[m.home]||{}, at = TEAM_DB[m.away]||{};
-    const h2hKey = m.home+'-'+m.away; const h2h = H2H_DB[h2hKey];
+    const kk = h2hKey(m.home, m.away); const h2h = H2H_DB[kk];
     const sd = STANDINGS_DB[m.league];
     return `你是一位专业的足球分析师。请用中文写一份约300字的赛前分析报告，包含以下结构：
 1. 比赛概况（${m.home} vs ${m.away}，${m.league}，${m.time}，${m.stadium}，${m.weather}）
@@ -2495,7 +2498,7 @@ function buildAIPrompt(m) {
 
 function templateAIPreview(m) {
     const ht = TEAM_DB[m.home]||{}, at = TEAM_DB[m.away]||{};
-    const h2hKey = m.home+'-'+m.away; const h2h = H2H_DB[h2hKey];
+    const kk = h2hKey(m.home, m.away); const h2h = H2H_DB[kk];
     const pp = m.predictionPlans?.sijiliang;
     const hForm = (ht.form||[]).slice(-5); const aForm = (at.form||[]).slice(-5);
     const hW = hForm.filter(f=>f==='w').length, aW = aForm.filter(f=>f==='w').length;
@@ -2950,7 +2953,7 @@ function updateSandbox() {
     updateKellyData(adjWin, adjDraw, adjLose, m);
 }
 
-function initKelly() { const m = matchData[0]; updateKellyData(m.aiPredict.win / 100, m.aiPredict.draw / 100, m.aiPredict.loss / 100, m); }
+function initKelly() { const m = matchData[0]; if (!m || !m.aiPredict) return; updateKellyData(m.aiPredict.win / 100, m.aiPredict.draw / 100, m.aiPredict.loss / 100, m); }
 
 function updateKellyFromInputs() {
     const m = matchData[0];
@@ -3563,6 +3566,7 @@ function showPredHistory() {
     const modal = $('#logoutModal'); if (!modal) return;
     modal.querySelector('.modal-title').textContent = '📝 预测历史 (' + predictionHistory.length + '条)';
     modal.querySelector('.modal-text').innerHTML = summaryBar + headerRow + (list || '<div style="color:var(--sub)">暂无记录</div>');
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
     modal.querySelector('.modal-btn-confirm').textContent = '关闭';
     modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
     modal.classList.add('show');
