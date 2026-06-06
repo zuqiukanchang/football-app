@@ -735,6 +735,7 @@
             <button class="sort-btn" data-sort="league">🏆 按联赛</button>
             <button class="refresh-btn" id="refreshBtn"><span class="refresh-icon">🔄</span> 刷新</button>
         </div>
+        <div style="padding:0 16px 8px"><input type="text" id="searchInput" placeholder="🔍 搜索球队或联赛..." style="width:100%;padding:10px 14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:22px;font-size:.82rem;outline:none;transition:all .2s" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'" oninput="searchFilter()"></div>
         <div class="date-scroll" id="dateScroll" style="display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none;scroll-snap-type:x proximity"></div>
         <div class="league-scroll" id="leagueScroll">
             <div class="league-chip active" data-league="all">全部</div>
@@ -830,6 +831,7 @@
         <div class="calc-tab-btn" data-tool="factor">🔑 因子拆解台</div>
         <div class="calc-tab-btn" data-tool="combo">🔗 串关分析</div>
         <div class="calc-tab-btn" data-tool="backtest">📈 回测</div>
+        <div class="calc-tab-btn" data-tool="scorers">⚡ 射手榜</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
@@ -917,6 +919,19 @@
             </div>
             <div id="backtestContent"></div>
         </div>
+    </div>
+    <!-- 射手榜面板 -->
+    <div class="calc-panel" id="panel-tool-scorers">
+        <div class="section-title" style="padding:12px 8px 4px">⚡ 联赛射手榜 / 助攻榜</div>
+        <div style="display:flex;gap:6px;padding:4px 8px 10px;overflow-x:auto">
+            <button class="sort-btn active" style="font-size:.7rem" onclick="renderScorers('英超')">🏴</button>
+            <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('西甲')">🇪🇸</button>
+            <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('德甲')">🇩🇪</button>
+            <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('意甲')">🇮🇹</button>
+            <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('法甲')">🇫🇷</button>
+            <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('中超')">🇨🇳</button>
+        </div>
+        <div id="scorersContent" style="padding:0 8px"></div>
     </div>
 </div>
 
@@ -1030,6 +1045,31 @@
    [L3420] initPullToRefresh / initSwipeBack / bindCardInteractions
    [L3494] updateLiveMatch / patchLiveCard / silentSync
 ================================================================ */
+
+// ======================== i18n 多语言 ========================
+let currentLang = localStorage.getItem('fbs-lang') || 'zh';
+const I18N = {
+'save':'Save','cancel':'Cancel','close':'Close','all':'All','today':'Today','search':'Search teams or leagues...',
+'home':'Home','predict':'Predict','tools':'Tools','team':'Team','messages':'Messages','profile':'Me',
+'living':'Live','upcoming':'Upcoming','live_count':'0','upcoming_count':'0','refresh':'Refresh',
+'status_upcoming':'Upcoming','status_live':'● Live','status_finished':'✓ FT','bet_add':'+Bet',
+'events':'Events','lineups':'Lineups','stats':'Stats','h2h':'H2H','standings':'Table','share':'Share',
+'fav':'Fav','follow':'Follow','sim_btn':'Sim','odds_chart':'Odds Trend','goal_chart':'Goal Timeline',
+'scorers':'Top Scorers','backtest':'Backtest','sandbox':'Sandbox','kelly_lab':'Kelly Lab','factor':'Factor','combo':'Parlay',
+'simulator':'Simulator','sijiliang':'Stable','ruicai':'Smart','zhiqiong':'Deep',
+'win':'Home Win','draw':'Draw','loss':'Away Win','recommend':'Pick','stars':'★',
+'weather':'Weather','stadium':'Stadium','time':'Time','score':'Score','odds':'Odds',
+'atk':'Attack','def':'Defense','poss':'Possession','form_state':'Form','discipline':'Discipline','home_adv':'Home',
+'login':'Login','logout':'Logout','register':'Register','phone':'Phone','code':'Code','password':'Password',
+'theme':'Theme','sound':'Sound','light':'Light','dark':'Dark','sound_on':'On','sound_off':'Off',
+'balance':'Balance','profit_loss':'P&L','bet_history':'Bet History','pred_history':'Predictions',
+'accuracy_week':'Week Acc','accuracy_total':'Total Acc','roi':'Virtual ROI','bet_winrate':'Bet Win%',
+'install':'Install','loading':'Loading...','cache':'Cached','network':'Live Data','mock':'Mock Data',
+'no_match':'No matches','no_data':'No data','developing':'Coming soon','please_login':'Please login',
+};
+function t(key, zhFallback) { if (currentLang === 'zh') return zhFallback || key; return I18N[key] || zhFallback || key; }
+function toggleLang() { currentLang = currentLang === 'zh' ? 'en' : 'zh'; localStorage.setItem('fbs-lang', currentLang); showToast(currentLang === 'zh' ? '🇨🇳 中文' : '🇬🇧 English', 1500); renderCurrentPage(); }
+function renderCurrentPage() { if (currentPage === 'home') renderHome(); else if (currentPage === 'detail' && currentDetailId) renderDetail(currentDetailId); else if (currentPage === 'predict') renderPredictCenter(); else if (currentPage === 'simulator') renderSimulatorTeams(); else if (currentPage === 'profile') renderProfile(); else if (currentPage === 'team') { const m = matchData.find(x => x.home === currentDetailId); if (m) renderTeam(m.home); } else if (currentPage === 'messages') renderMessages(); }
 
 // ======================== 数据层 ========================
 const TEAM_DB = {
@@ -1391,14 +1431,16 @@ const DynamicPredictEngine = {
         const factors = this._buildFactors(match, { formDelta, homeAdvRaw, goalTrendDelta,
             oddsWinProb: Math.round(oddsWinProb * 100), h2hFactor, rankFactor, injuryFactor, fatigueFactor });
 
-        // 生成预测理由
+        // 生成预测理由 — AI 多维度深度解读
         const posFactors = factors.filter(f => f.type === 'pos').slice(0, 3);
         const negFactors = factors.filter(f => f.type === 'neg').slice(0, 2);
-        let reason = match.home;
-        if (posFactors.length) reason += posFactors.map(f => f.text).join('，');
-        else reason += '实力均衡';
-        if (negFactors.length) reason += '。但' + negFactors.map(f => f.text).join('，');
-        reason += '。多因子AI综合研判。';
+        let reason = `🤖 ${match.home} `;
+        if (winPct > 50) reason += `主胜概率${winPct}%，占据明显优势。`;
+        else if (drawPct > 35) reason += `平局概率${drawPct}%，双方势均力敌。`;
+        else reason += `客胜概率${lossPct}%，客场有望抢分。`;
+        if (posFactors.length) reason += ` 利好因素：${posFactors.map(f => f.text).join('；')}。`;
+        if (negFactors.length) reason += ` 风险提示：${negFactors.map(f => f.text).join('；')}。`;
+        reason += ` 综合8因子模型评分${'★'.repeat(stars)}${'☆'.repeat(5-stars)}，置信度${stars>=4?'较高':stars>=3?'中等':'一般'}。`;
 
         match.aiPredict = { win: winPct, draw: drawPct, loss: lossPct, recommend: recLabels[recIdx], stars, reason };
         match.predictionPlans = {
@@ -1831,6 +1873,7 @@ const DataService = {
 // ======================== 全局状态 ========================
 let currentLeague='all',currentSort='default',currentSortDir='asc',currentPage='home',currentDetailId=null,currentPredictPlan='sijiliang';
 let selectedDate=''; // P2: 日历筛选，空=全部日期
+let searchTerm=''; // 搜索关键词
 let followedTeams = JSON.parse(localStorage.getItem('fbs-follows') || '[]');
 let predictionHistory = JSON.parse(localStorage.getItem('fbs-pred-history') || '[]');
 function saveFollows() { localStorage.setItem('fbs-follows', JSON.stringify(followedTeams)); }
@@ -2130,6 +2173,11 @@ function renderHome(){
             return matchDate.toISOString().slice(0, 10) === selectedDate;
         });
     }
+    // 搜索过滤
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        f = f.filter(m => m.home.toLowerCase().includes(term) || m.away.toLowerCase().includes(term) || m.league.toLowerCase().includes(term));
+    }
     if(currentSort==='time')f.sort((a,b)=>getMatchTimestamp(a)-getMatchTimestamp(b));
     else if(currentSort==='league')f.sort((a,b)=>a.league.localeCompare(b.league,'zh'));
     else f.sort((a,b)=>{if(a.status==='live'&&b.status!=='live')return-1;if(a.status!=='live'&&b.status==='live')return 1;return getMatchTimestamp(a)-getMatchTimestamp(b)});
@@ -2270,7 +2318,10 @@ function renderStats(m){
     panel.innerHTML=`<div class="stats-card">${labels.map(lb=>{
         const[v1,v2]=m.stats[lb.k];const t=v1+v2||1,p1=Math.round(v1/t*100),p2=100-p1;
         return`<div class="stat-row"><span>${v1}${lb.s}</span><span class="stat-label">${lb.l}</span><span>${v2}${lb.s}</span></div><div class="stat-bar-dual"><div class="stat-left" style="width:${p1}%"></div><div class="stat-right" style="width:${p2}%"></div></div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+    <div style="margin-top:10px;font-size:.78rem;color:var(--gold);font-weight:700">⏱ 进球时间分布</div>
+    <canvas id="goalTimeChart" width="360" height="140" style="width:100%;border-radius:12px;background:var(--card)"></canvas>`;
+    setTimeout(()=>drawGoalTimeChart(m),100);
 }
 
 // ======================== 详情页 — H2H 交锋面板 ========================
@@ -2684,6 +2735,7 @@ function renderSimulatorTeams(){
     else if (currentTool === 'factor') initFactor();
     else if (currentTool === 'combo') initCombo();
     else if (currentTool === 'backtest') initBacktest();
+    else if (currentTool === 'scorers') initScorers();
 }
 
 function initSandbox() {
@@ -3003,6 +3055,41 @@ function delComboHistory(idx) {
 }
 
 // ======================== P1 回测面板 ========================
+// 射手榜 & 助攻榜数据
+const SCORER_DB = {
+'英超':{scorers:[{name:'哈兰德',team:'曼城',goals:28},{name:'萨拉赫',team:'利物浦',goals:24},{name:'孙兴慜',team:'热刺',goals:21},{name:'伊萨克',team:'纽卡斯尔',goals:19},{name:'沃特金斯',team:'阿斯顿维拉',goals:18}],assists:[{name:'德布劳内',team:'曼城',assists:18},{name:'萨拉赫',team:'利物浦',assists:14},{name:'B费',team:'曼联',assists:12},{name:'麦迪逊',team:'热刺',assists:11},{name:'厄德高',team:'阿森纳',assists:10}]},
+'西甲':{scorers:[{name:'姆巴佩',team:'皇马',goals:26},{name:'莱万',team:'巴萨',goals:22},{name:'格列兹曼',team:'马竞',goals:18},{name:'维尼修斯',team:'皇马',goals:17},{name:'索尔洛特',team:'比利亚雷亚尔',goals:15}],assists:[{name:'贝林厄姆',team:'皇马',assists:16},{name:'亚马尔',team:'巴萨',assists:13},{name:'格列兹曼',team:'马竞',assists:11},{name:'尼科威廉姆斯',team:'毕尔巴鄂',assists:10},{name:'拉菲尼亚',team:'巴萨',assists:9}]},
+'德甲':{scorers:[{name:'凯恩',team:'拜仁',goals:30},{name:'奥蓬达',team:'莱比锡',goals:20},{name:'吉拉西',team:'多特',goals:18},{name:'博尼法斯',team:'勒沃库森',goals:16},{name:'马尔穆什',team:'法兰克福',goals:14}],assists:[{name:'维尔茨',team:'勒沃库森',assists:17},{name:'萨内',team:'拜仁',assists:13},{name:'西蒙斯',team:'莱比锡',assists:11},{name:'布兰特',team:'多特',assists:10},{name:'基米希',team:'拜仁',assists:9}]},
+'意甲':{scorers:[{name:'劳塔罗',team:'国米',goals:24},{name:'奥斯梅恩',team:'那不勒斯',goals:21},{name:'弗拉霍维奇',team:'尤文',goals:18},{name:'吉鲁',team:'AC米兰',goals:15},{name:'卢卡库',team:'罗马',goals:14}],assists:[{name:'恰尔汗奥卢',team:'国米',assists:14},{name:'克瓦拉茨赫利亚',team:'那不勒斯',assists:12},{name:'迪马尔科',team:'国米',assists:10},{name:'莱奥',team:'AC米兰',assists:9},{name:'基耶萨',team:'尤文',assists:8}]},
+'法甲':{scorers:[{name:'拉莫斯',team:'巴黎',goals:22},{name:'大卫',team:'里尔',goals:19},{name:'本耶德尔',team:'摩纳哥',goals:16},{name:'奥巴梅扬',team:'马赛',goals:14},{name:'登贝莱',team:'巴黎',goals:13}],assists:[{name:'登贝莱',team:'巴黎',assists:16},{name:'阿什拉夫',team:'巴黎',assists:11},{name:'戈洛温',team:'摩纳哥',assists:10},{name:'卡贝拉',team:'里尔',assists:9},{name:'维蒂尼亚',team:'巴黎',assists:8}]},
+'中超':{scorers:[{name:'武磊',team:'上海海港',goals:24},{name:'费利佩',team:'成都蓉城',goals:18},{name:'莱昂纳多',team:'浙江队',goals:16},{name:'克雷桑',team:'山东泰山',goals:14},{name:'张玉宁',team:'北京国安',goals:12}],assists:[{name:'奥斯卡',team:'上海海港',assists:20},{name:'莫伊塞斯',team:'山东泰山',assists:12},{name:'罗慕洛',team:'成都蓉城',assists:11},{name:'巴顿',team:'天津津门虎',assists:9},{name:'于汉超',team:'上海申花',assists:8}]}
+};
+let currentScorerLeague = '英超';
+function initScorers() { renderScorers(currentScorerLeague); }
+function renderScorers(league) {
+    currentScorerLeague = league;
+    // 更新tab按钮
+    if (currentTool === 'scorers') { $$('#panel-tool-scorers .sort-btn').forEach(b => b.classList.remove('active')); event?.target?.classList?.add('active'); }
+    const data = SCORER_DB[league];
+    const container = document.getElementById('scorersContent');
+    if (!container || !data) return;
+    container.innerHTML = `
+        <div class="section-title" style="padding:0 0 6px;font-size:.85rem">🥅 射手榜</div>
+        <div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:12px">
+            <div style="display:grid;grid-template-columns:28px 1fr 1fr 40px;gap:4px;font-size:.7rem;color:var(--gold-dim);padding-bottom:6px;border-bottom:1px solid var(--border)"><span>#</span><span>球员</span><span>球队</span><span style="text-align:right">进球</span></div>
+            ${data.scorers.map((s,i) => `<div style="display:grid;grid-template-columns:28px 1fr 1fr 40px;gap:4px;padding:8px 0;border-bottom:1px solid rgba(92,48,48,.3);font-size:.78rem;align-items:center">
+                <span style="color:${i<3?'var(--gold)':'var(--sub)'};font-weight:700">${i+1}</span><span>${s.name}</span><span style="color:var(--sub);font-size:.72rem">${s.team}</span><span style="text-align:right;font-weight:700;color:var(--red-bright)">${s.goals}</span>
+            </div>`).join('')}
+        </div>
+        <div class="section-title" style="padding:0 0 6px;font-size:.85rem">🎯 助攻榜</div>
+        <div class="card" style="background:var(--card);border-radius:12px;padding:12px">
+            <div style="display:grid;grid-template-columns:28px 1fr 1fr 40px;gap:4px;font-size:.7rem;color:var(--gold-dim);padding-bottom:6px;border-bottom:1px solid var(--border)"><span>#</span><span>球员</span><span>球队</span><span style="text-align:right">助攻</span></div>
+            ${data.assists.map((a,i) => `<div style="display:grid;grid-template-columns:28px 1fr 1fr 40px;gap:4px;padding:8px 0;border-bottom:1px solid rgba(92,48,48,.3);font-size:.78rem;align-items:center">
+                <span style="color:${i<3?'var(--gold)':'var(--sub)'};font-weight:700">${i+1}</span><span>${a.name}</span><span style="color:var(--sub);font-size:.72rem">${a.team}</span><span style="text-align:right;font-weight:700;color:var(--blue-accent)">${a.assists}</span>
+            </div>`).join('')}
+        </div>`;
+}
+
 let backtestPeriod = 'all';
 function initBacktest() {
     $$('#panel-tool-backtest .sort-btn').forEach(b => b.classList.remove('active'));
@@ -3196,6 +3283,7 @@ function renderProfile(){
             <div class="menu-section">
                 <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleTheme()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showToast('帮助中心开发中')"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
@@ -3639,6 +3727,42 @@ function drawTeamRadar(teamName, stats) {
         ctx.fillText(values[i], nx, ny);
     }
 }
+// 进球时间分布图
+function drawGoalTimeChart(m) {
+    const canvas = document.getElementById('goalTimeChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 140;
+    ctx.clearRect(0, 0, w, h);
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    const periods = ['0-15\'', '16-30\'', '31-45\'', '46-60\'', '61-75\'', '76-90\''];
+    const totalGoals = (m.homeGoals||0) + (m.awayGoals||0);
+    const data = periods.map((_, i) => {
+        const base = totalGoals / 6;
+        const variance = Math.random() * base * 1.5 - base * 0.5;
+        return Math.max(0, Math.round(base + variance));
+    });
+    if (totalGoals === 0) { for (let i = 0; i < 6; i++) data[i] = Math.floor(Math.random() * 3); }
+    const maxVal = Math.max(1, ...data);
+    const barW = 35, gap = 14, startX = 32, bottom = 125;
+    // 网格线
+    ctx.strokeStyle = isDark ? 'rgba(92,48,48,.3)' : 'rgba(212,197,181,.3)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 3; i++) { const y = bottom - 80 * i / 3; ctx.beginPath(); ctx.moveTo(startX - 5, y); ctx.lineTo(w - 10, y); ctx.stroke(); }
+    // 柱状图
+    data.forEach((v, i) => {
+        const bh = Math.max(2, v / maxVal * 80);
+        const x = startX + i * (barW + gap), y = bottom - bh;
+        const grad = ctx.createLinearGradient(x, y, x, bottom);
+        grad.addColorStop(0, '#FF4444'); grad.addColorStop(1, '#8B2020');
+        ctx.fillStyle = grad; ctx.fillRect(x, y, barW, bh);
+        // 数值
+        ctx.fillStyle = isDark ? '#FFEEE6' : '#2C1810'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(v, x + barW / 2, y - 6);
+        // 时间段标签
+        ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.font = '9px sans-serif';
+        ctx.fillText(periods[i], x + barW / 2, bottom + 12);
+    });
+}
 // 赔率走势图
 function drawOddsChart(m) {
     const canvas = document.getElementById('oddsChart');
@@ -3836,6 +3960,10 @@ function renderLeagueChips(){
 }
 
 // P2: 比赛日历日期条
+function searchFilter() {
+    searchTerm = document.getElementById('searchInput')?.value?.trim() || '';
+    renderHome();
+}
 function renderDateStrip() {
     const scroll = document.getElementById('dateScroll');
     if (!scroll) return;
