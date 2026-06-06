@@ -925,8 +925,8 @@
     <div id="panel-predict" class="tab-panel">
         <div class="predict-subtabs" id="predictSubtabs">
             <div class="predict-subtab active" data-plan="sijiliang">稳基</div>
-            <div class="predict-subtab" data-plan="ruicai">睿财</div>
-            <div class="predict-subtab" data-plan="zhiqiong">智穹</div>
+            <div class="predict-subtab" data-plan="ruicai">${isPremium?'睿财':'🔒 睿财'}</div>
+            <div class="predict-subtab" data-plan="zhiqiong">${isPremium?'智穹':'🔒 智穹'}</div>
         </div>
         <div id="predictContent"></div>
         <canvas id="oddsChart" width="360" height="180" style="display:none;width:100%;max-width:100%;margin:8px 0;border-radius:12px"></canvas>
@@ -3571,6 +3571,7 @@ function renderProfile(){
                 <div class="profile-avatar">⚽</div>
                 <div class="profile-phone">${user.phone}</div>
                 <div class="level-badge">🏅 ${user.level}</div>
+                ${isPremium?'<div style="display:inline-block;margin-left:6px;padding:4px 10px;border-radius:10px;font-size:.7rem;background:linear-gradient(135deg,#C9A84C,#8B6914);color:#1A0A0A;font-weight:700">👑 会员</div>':''}
                 ${isPremium ? `<div class="expire-bar"><div class="expire-fill" style="width:${expiryPct}%"></div></div><div class="expire-text">剩余 ${expiryDays} 天 · ${expiryDateStr} 到期</div>` : ''}
                 <div class="profile-btn-row">
                     <button class="btn-outline" onclick="showToast('续费功能开发中')">${isPremium?'续费':'开通会员'}</button>
@@ -4575,8 +4576,8 @@ function bindEvents(){
     $('#refreshBtn').addEventListener('click',manualRefresh);
     // 详情Tab
     $('#detailTabs').addEventListener('click',function(e){const t=e.target.closest('.detail-tab');if(!t)return;$$('#detailTabs .detail-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');$$('#page-detail .tab-panel').forEach(p=>{p.classList.remove('active');p.style.display='none'});const panel=$('#panel-'+t.dataset.tab);if(panel){panel.classList.add('active');panel.style.display='block'}});
-    // 预测子Tab（详情页）
-    $('#predictSubtabs').addEventListener('click',function(e){const t=e.target.closest('.predict-subtab');if(!t)return;$$('#predictSubtabs .predict-subtab').forEach(x=>x.classList.remove('active'));t.classList.add('active');currentPredictPlan=t.dataset.plan;const m=getMatch(currentDetailId);if(m)renderPredictContent(m,currentPredictPlan)});
+    // 预测子Tab（详情页），会员门控
+    $('#predictSubtabs').addEventListener('click',function(e){const t=e.target.closest('.predict-subtab');if(!t)return;const plan=t.dataset.plan;if((plan==='ruicai'||plan==='zhiqiong')&&!isPremium){if(!checkFreeLimit()){showUpgradePrompt('睿财/智穹AI分析');return}incFreeCount()}$$('#predictSubtabs .predict-subtab').forEach(x=>x.classList.remove('active'));t.classList.add('active');currentPredictPlan=plan;const m=getMatch(currentDetailId);if(m)renderPredictContent(m,currentPredictPlan)});
     // 预测中心方案Tab
     $('#planTabs').addEventListener('click',function(e){const t=e.target.closest('.plan-tab-btn');if(!t)return;currentPredictPlan=t.dataset.plan;renderPredictCenter()});
     // 工具中心子Tab
@@ -5078,6 +5079,12 @@ function showFeedbackForm() {
 // ======================== 会员模拟 ========================
 let isPremium = localStorage.getItem('fbs-premium') === 'true';
 const VIP_CODES = ['VIP888', 'PREMIUM2026', 'AKAGI-VIP'];
+let freePredCount = parseInt(localStorage.getItem('fbs-free-count') || '0');
+let freePredDate = localStorage.getItem('fbs-free-date') || '';
+function checkFreeLimit() { const today = new Date().toDateString(); if (freePredDate !== today) { freePredCount = 0; freePredDate = today; } return freePredCount < 10; }
+function incFreeCount() { freePredCount++; freePredDate = new Date().toDateString(); localStorage.setItem('fbs-free-count', freePredCount); localStorage.setItem('fbs-free-date', freePredDate); }
+function requirePremium(feature) { if (!isPremium) { showToast('👑 该功能需会员，每日限免' + (10 - freePredCount) + '次'); return false; } return true; }
+function showUpgradePrompt(feature) { const modal = document.getElementById('logoutModal'); if (!modal) return; modal.querySelector('.modal-btn-cancel').style.display = ''; modal.querySelector('.modal-btn-cancel').textContent = '稍后'; modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal; modal.querySelector('.modal-title').textContent = '👑 升级会员解锁'; modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem;margin-bottom:8px">🔒</div><p style="color:var(--gold)">${feature} 为会员专属功能</p><p style="font-size:.78rem;color:var(--sub);margin:8px 0">免费用户每日限10次 · 会员无限制</p></div>`; modal.querySelector('.modal-btn-confirm').textContent = '立即升级'; modal.querySelector('.modal-btn-confirm').onclick = () => { closeLogoutModal(); showPremiumModal(); }; modal.classList.add('show'); }
 function showPremiumModal() {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
     modal.querySelector('.modal-btn-cancel').style.display = '';
@@ -5086,13 +5093,20 @@ function showPremiumModal() {
     modal.querySelector('.modal-title').textContent = isPremium ? '👑 至尊会员' : '💎 升级会员';
     modal.querySelector('.modal-text').innerHTML = isPremium ? `
         <div style="text-align:center;font-size:3rem;margin-bottom:8px">👑</div>
-        <p style="color:var(--gold)">你已是至尊会员，享受以下权益：</p>
+        <p style="color:var(--gold)">你已是至尊会员</p>
         <div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">
-        ✅ AI深度分析（8因子全量）<br>✅ 凯利投注优化<br>✅ 回测系统无限制<br>✅ 串关推荐无限次<br>✅ 数据导出备份<br>✅ 优先客服响应</div>` : `
+        ✅ 三AI全量预测（稳基+睿财+智穹）<br>✅ 所有工具无限制（凯利/因子/串关）<br>✅ 实时赛事提醒推送<br>✅ 回测系统全量数据<br>✅ 数据导出备份<br>✅ 金龙专属会员标识</div>` : `
         <div style="text-align:center;font-size:3rem;margin-bottom:8px">💎</div>
-        <p>输入VIP邀请码解锁至尊会员</p>
-        <input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:8px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
-        <div style="font-size:.7rem;color:var(--sub)">提示：输入VIP888试试</div>`;
+        <p style="color:var(--gold);font-weight:700">升级至尊会员</p>
+        <div style="text-align:left;font-size:.75rem;line-height:1.8;margin:8px 0;color:var(--sub)">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🎯 三AI全量预测</span><span style="color:var(--gold)">✓</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🔧 全部工具</span><span style="color:var(--gold)">✓</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🔔 赛事提醒</span><span style="color:var(--gold)">✓</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span>👑 会员标识</span><span style="color:var(--gold)">✓</span></div></div>
+        <p style="font-size:.7rem;color:var(--sub);margin:10px 0">方式一：输入VIP邀请码</p>
+        <input id="vipCodeInput" placeholder="输入邀请码 (如VIP888)" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+        <p style="font-size:.7rem;color:var(--sub);margin:8px 0">方式二：微信/支付宝支付（即将上线）</p>
+        <div style="display:flex;gap:8px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.75rem" onclick="event.preventDefault();showToast('💳 支付功能开发中，请使用邀请码激活',2500)">💚 微信</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.75rem" onclick="event.preventDefault();showToast('💳 支付功能开发中，请使用邀请码激活',2500)">💙 支付宝</button></div>`;
     modal.querySelector('.modal-btn-confirm').textContent = isPremium ? '退出会员' : '激活';
     modal.querySelector('.modal-btn-confirm').onclick = () => {
         if (isPremium) { isPremium = false; localStorage.removeItem('fbs-premium'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
