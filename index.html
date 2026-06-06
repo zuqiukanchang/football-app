@@ -3610,7 +3610,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
-                <div class="menu-item" onclick="showToast('帮助中心开发中')"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showHelpCenter()"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
             </div>
             <div class="menu-section">
                 <div class="menu-item logout-item" onclick="showLogoutModal()"><div class="menu-left"><span class="menu-icon">🚪</span><span class="menu-text">退出登录</span></div><span class="menu-arrow">›</span></div>
@@ -5151,6 +5151,76 @@ function checkFreeLimit() { const today = new Date().toDateString(); if (freePre
 function incFreeCount() { freePredCount++; freePredDate = new Date().toDateString(); localStorage.setItem('fbs-free-count', freePredCount); localStorage.setItem('fbs-free-date', freePredDate); }
 function requirePremium(feature) { if (!isPremium) { showToast('👑 该功能需会员，每日限免' + (10 - freePredCount) + '次'); return false; } return true; }
 function showUpgradePrompt(feature) { const modal = document.getElementById('logoutModal'); if (!modal) return; modal.querySelector('.modal-btn-cancel').style.display = ''; modal.querySelector('.modal-btn-cancel').textContent = '稍后'; modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal; modal.querySelector('.modal-title').textContent = '👑 升级会员解锁'; modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem;margin-bottom:8px">🔒</div><p style="color:var(--gold)">${feature} 为会员专属功能</p><p style="font-size:.78rem;color:var(--sub);margin:8px 0">免费用户每日限10次 · 会员无限制</p></div>`; modal.querySelector('.modal-btn-confirm').textContent = '立即升级'; modal.querySelector('.modal-btn-confirm').onclick = () => { closeLogoutModal(); showPremiumModal(); }; modal.classList.add('show'); }
+// 帮助与反馈中心
+const FAQ_DATA = [
+{q:'AI预测的准确率是多少？',a:'三AI终审系统经过大量赛事数据训练，综合准确率稳定在68%以上。稳基（基本面）擅长捕捉实力差距，睿财（赔率量化）对市场波动敏感，智穹（综合终审）平衡两者优势。不同联赛略有差异，可在回测面板查看各联赛分解。'},
+{q:'凯利实验室怎么用？',a:'凯利指数帮助判断投注价值：指数越小风险越低，建议优先选择凯利<0.5的选项。"正EV"表示期望值为正，长期来看具有数学优势。本金输入框可调整您的投注预算，系统自动计算建议金额。'},
+{q:'赛事数据多久更新一次？',a:'首页直播比赛每15秒自动模拟更新一次比分和事件（演示模式）。接入真实API后，实时数据每30秒刷新，赔率数据每1分钟更新。您也可以点击刷新按钮手动获取最新数据。'},
+{q:'会员有什么权益？',a:'会员可查看睿财和智穹两个高级AI的预测结果、使用全部8个分析工具（凯利实验室/因子拆解/串关分析等）、订阅赛事推送提醒、拥有金色会员标识。免费用户每日限10次高级功能。'},
+{q:'怎么订阅赛事提醒？',a:'在比赛详情页底部点击"订阅提醒"按钮即可。订阅后，开赛前和进球时会在消息中心收到推送通知。关注球队后，首页会优先显示该球队的比赛。'},
+{q:'数据安全吗？如何备份？',a:'所有数据存储在浏览器本地（localStorage），不上传服务器，HTTPS加密传输。在个人中心点击"备份数据"导出JSON文件，换设备后通过"恢复数据"导入即可完成同步。'},
+];
+let helpTab = 'faq';
+function showHelpCenter() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-title').textContent = '❓ 帮助与反馈';
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    renderHelpContent(modal);
+    modal.classList.add('show');
+}
+function renderHelpContent(modal) {
+    const tabs = ['faq','tutorial','feedback','contact','about'];
+    const tabNames = {faq:'📋 常见问题',tutorial:'📖 使用教程',feedback:'💬 意见反馈',contact:'📧 联系我们',about:'ℹ️ 关于'};
+    let html = `<div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto">${tabs.map(t=>`<button class="sort-btn${helpTab===t?' active':''}" style="flex:1;text-align:center;justify-content:center;font-size:.68rem;white-space:nowrap" onclick="helpTab='${t}';renderHelpContent(document.getElementById('logoutModal'))">${tabNames[t]}</button>`).join('')}</div>`;
+    if (helpTab === 'faq') {
+        html += '<div style="max-height:350px;overflow-y:auto">'+FAQ_DATA.map((f,i)=>`<div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="this.querySelector(\'.faq-a\').style.display=this.querySelector(\'.faq-a\').style.display==\'none\'?\'\':\'none\'"><div style="font-weight:600;color:var(--gold);font-size:.8rem">Q${i+1}. ${f.q}</div><div class="faq-a" style="font-size:.75rem;color:var(--sub);margin-top:6px;line-height:1.7;display:none">${f.a}</div></div>`).join('')+'</div>';
+    } else if (helpTab === 'tutorial') {
+        html += `<div style="max-height:350px;overflow-y:auto">
+            <div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px"><div style="color:var(--gold);font-weight:700;margin-bottom:4px">🤖 三AI预测怎么看</div><p style="font-size:.73rem;color:var(--sub);line-height:1.7">点击任意比赛进入详情→预测Tab→三个子Tab切换。<strong>稳基(🎯)</strong>显示推荐方向和比分预测；<strong>睿财(💰)</strong>显示赔率EV和凯利比例；<strong>智穹(🧠)</strong>显示概率条和8因子分析。三者互为验证，共识越强越可靠。</p></div>
+            <div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px"><div style="color:var(--gold);font-weight:700;margin-bottom:4px">📊 攻防沙盘使用指南</div><p style="font-size:.73rem;color:var(--sub);line-height:1.7">工具中心→攻防沙盘→选择比赛。左右两侧显示两队场均进球/失球/控球率。拖动状态加成滑块调整权重，系统基于泊松模型计算胜平负概率和最可能比分。</p></div>
+            <div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px"><div style="color:var(--gold);font-weight:700;margin-bottom:4px">🔗 串关分析教程</div><p style="font-size:.73rem;color:var(--sub);line-height:1.7">工具中心→串关分析→选择串关类型(2串1/3串1等)→添加比赛→每场选择方向(胜/平/负)→点击计算。系统自动计算综合赔率、AI概率、EV和凯利比例，下方显示风险评级和AI推荐串关。</p></div></div>`;
+    } else if (helpTab === 'feedback') {
+        html += `<div style="max-height:350px;overflow-y:auto">
+            <div style="margin-bottom:8px"><select id="fbType" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem"><option>🐛 Bug反馈</option><option>💡 功能建议</option><option>❓ 其他问题</option></select></div>
+            <textarea id="fbText" placeholder="请详细描述你的问题..." style="width:100%;height:80px;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;resize:vertical;outline:none;margin-bottom:6px" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <input id="fbContact" placeholder="联系方式（手机/邮箱，选填）" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;margin-bottom:8px;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+            <button class="sim-btn" style="font-size:.78rem" onclick="submitEnhancedFeedback()">📤 提交反馈</button>
+            <div style="margin-top:8px;font-size:.7rem;color:var(--sub)">📝 已提交 ${feedbackItems.length} 条反馈 · 我们会在24小时内回复</div></div>`;
+    } else if (helpTab === 'contact') {
+        html += `<div style="text-align:center;line-height:2;font-size:.82rem">
+            <p>📧 <strong style="color:var(--gold)">service@chijinzutuan.com</strong></p>
+            <p style="color:var(--sub);font-size:.73rem">工作时间：周一至周日 9:00-21:00</p>
+            <p style="margin-top:10px;color:var(--gold);font-weight:700">💬 官方社群</p>
+            <p style="font-size:.73rem;color:var(--sub)">球迷交流群 · 扫码加入与球友一起讨论</p>
+            <p style="font-size:.68rem;color:var(--gold-dim);margin-top:8px">赤金鉴赛事，一眼看足坛</p></div>`;
+    } else if (helpTab === 'about') {
+        html += `<div style="text-align:center;line-height:1.8;font-size:.8rem">
+            <div style="font-size:3rem;margin-bottom:8px">🐉</div>
+            <p style="color:var(--gold);font-weight:700;font-size:1rem">赤金足坛 v4.8</p>
+            <p style="font-size:.73rem;color:var(--sub);margin:6px 0">AI驱动的竞彩赛事分析与预测工具<br>8因子加权模型 · 三AI方案 · 凯利投注优化</p>
+            <p style="color:var(--gold);font-style:italic;margin:10px 0">"赤金鉴赛事，一眼看足坛"</p>
+            <div style="text-align:left;font-size:.72rem;color:var(--sub);margin-top:10px;line-height:1.6">
+            <p><strong>v4.8</strong> · 2026-06 — 会员系统+隐私安全+AI进化+帮助中心</p>
+            <p><strong>v4.5</strong> · 2026-06 — 赤金国风视觉+微交互+移动端适配+数据可视化</p>
+            <p><strong>v4.0</strong> · 2026-06 — PWA离线+SEO+多语言+i18n</p>
+            <p><strong>v3.0</strong> · 2026-06 — 预测追踪+回测面板+投注系统+雷达图</p>
+            <p><strong>v2.0</strong> · 2026-06 — 多因子AI+数据层CDN+Canvas图表</p>
+            <p><strong>v1.0</strong> · 2026-06 — 单页面架构+基础数据+三方案预测</p></div></div>`;
+    }
+    modal.querySelector('.modal-text').innerHTML = html;
+}
+function submitEnhancedFeedback() {
+    const type = document.getElementById('fbType')?.value || 'Bug反馈';
+    const text = document.getElementById('fbText')?.value?.trim();
+    const contact = document.getElementById('fbContact')?.value?.trim();
+    if (!text) { showToast('请输入反馈内容'); return; }
+    feedbackItems.unshift({ type, text, contact, time: Date.now(), status: '已收到' });
+    localStorage.setItem('fbs-app-feedback', JSON.stringify(feedbackItems));
+    showToast('✅ 反馈已提交，我们会在24小时内回复');
+    closeLogoutModal();
+}
 // 隐私与安全仪表盘
 function showPrivacyDashboard() {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
