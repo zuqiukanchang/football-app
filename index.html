@@ -866,6 +866,7 @@
             <button class="sort-btn active" data-sort="default">📋 默认</button>
             <button class="sort-btn" data-sort="time">🕐 按时间</button>
             <button class="sort-btn" data-sort="league">🏆 按联赛</button>
+            <button class="refresh-btn" style="margin-right:4px" onclick="toggleMultiView()">📺</button>
             <button class="refresh-btn" id="refreshBtn"><span class="refresh-icon">🔄</span> 刷新</button>
         </div>
         <div style="padding:0 16px 8px"><input type="text" id="searchInput" placeholder="🔍 搜索球队或联赛..." style="width:100%;padding:10px 14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:22px;font-size:.82rem;outline:none;transition:all .2s" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'" oninput="searchFilter()"></div>
@@ -6077,6 +6078,57 @@ function renderLeagueChips(){
 function searchFilter() {
     searchTerm = document.getElementById('searchInput')?.value?.trim() || '';
     renderHome();
+}
+// 多场同屏模式
+let multiViewMode = false;
+let multiViewMatches = [];
+function toggleMultiView() {
+    multiViewMode = !multiViewMode;
+    if (multiViewMode) {
+        multiViewMatches = matchData.filter(m => followedTeams.some(t => m.home === t || m.away === t)).slice(0, 4);
+        if (multiViewMatches.length < 2) multiViewMatches = matchData.filter(m => m.status !== 'finished').slice(0, 4);
+        renderMultiView();
+    } else { renderHome(); }
+    showToast(multiViewMode ? `📺 同屏显示${multiViewMatches.length}场` : '已退出同屏模式');
+}
+function renderMultiView() {
+    const container = document.getElementById('liveMatches');
+    const upcomingContainer = document.getElementById('upcomingMatches');
+    if (container) container.innerHTML = '<div style="font-size:.78rem;color:var(--gold);font-weight:700;padding:8px 16px">📺 多场同屏 · 我的关注</div>' + multiViewMatches.map(m => {
+        const ht = TEAM_DB[m.home] || {}, at = TEAM_DB[m.away] || {};
+        return `<div class="match-card" style="margin:4px 16px;cursor:pointer" onclick="navigateTo('detail','${m.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:.75rem">
+                <span style="font-weight:600">${m.home}</span>
+                <span style="color:${m.status==='live'?'var(--red-bright)':'var(--gold)'};font-weight:700;font-size:.9rem">${m.status==='live'?m.homeGoals+':'+m.awayGoals:m.time}</span>
+                <span style="font-weight:600">${m.away}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--sub);margin-top:4px">
+                <span>${m.league}</span><span>AI:${m.aiPredict?.recommend||'?'} ${m.aiPredict?.stars||0}★</span><span>${m.status==='live'?'⚡直播':'⏰'+m.time}</span></div></div>`;
+    }).join('') + '<button class="sort-btn" style="margin:8px auto;display:block;font-size:.65rem" onclick="toggleMultiView()">退出同屏</button>';
+    if (upcomingContainer) upcomingContainer.innerHTML = '';
+}
+// 个性化推荐：关注球队+习惯学习
+function getPersonalizedMatches() {
+    const all = [...matchData];
+    // 关注球队置顶
+    const followed = all.filter(m => followedTeams.some(t => m.home === t || m.away === t));
+    const rest = all.filter(m => !followedTeams.some(t => m.home === t || m.away === t));
+    // 按AI星级排序
+    followed.sort((a, b) => (b.aiPredict?.stars || 0) - (a.aiPredict?.stars || 0));
+    rest.sort((a, b) => (b.aiPredict?.stars || 0) - (a.aiPredict?.stars || 0));
+    return [...followed, ...rest];
+}
+// 提醒升级：进球+比分扳平+赛前N分钟
+let reminderPrefs = JSON.parse(localStorage.getItem('fbs-reminder-prefs') || '{"goal":true,"equalizer":true,"preMatch15":true,"preMatch30":false}');
+function showReminderSettings() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-title').textContent = '🔔 赛事提醒设置';
+    const prefs = reminderPrefs;
+    modal.querySelector('.modal-text').innerHTML = `<div style="line-height:2;font-size:.78rem">
+        ${[{k:'goal',l:'⚽ 任意进球提醒'},{k:'equalizer',l:'🔄 比分扳平提醒'},{k:'preMatch15',l:'⏰ 赛前15分钟提醒'},{k:'preMatch30',l:'⏰ 赛前30分钟提醒'}].map(({k,l})=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${l}</span><label class="toggle-switch"><input type="checkbox" ${prefs[k]?'checked':''} onchange="reminderPrefs.${k}=this.checked;localStorage.setItem('fbs-reminder-prefs',JSON.stringify(reminderPrefs))"><span class="toggle-slider"></span></label></div>`).join('')}</div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
 }
 function renderDateStrip() {
     const scroll = document.getElementById('dateScroll');
