@@ -1263,6 +1263,92 @@ function toggleLang() {
 }
 function renderCurrentPage() { if (currentPage === 'home') renderHome(); else if (currentPage === 'detail' && currentDetailId) renderDetail(currentDetailId); else if (currentPage === 'predict') renderPredictCenter(); else if (currentPage === 'simulator') renderSimulatorTeams(); else if (currentPage === 'profile') renderProfile(); else if (currentPage === 'team') { const m = matchData.find(x => x.home === currentDetailId); if (m) renderTeam(m.home); } else if (currentPage === 'messages') renderMessages(); }
 
+// ======================== API服务层 ========================
+const API_CONFIG = {
+    baseURL: 'https://api.chijinzutuan.com/v1',
+    mockMode: true, // 生产环境设为false
+    timeout: 10000,
+    retryCount: 2,
+    adminToken: localStorage.getItem('fbs-admin-token') || '',
+};
+function apiSetMock(mode) { API_CONFIG.mockMode = mode; localStorage.setItem('fbs-api-mock', mode ? '1' : '0'); }
+function apiGetToken() { const u = loadUser(); return u?.token || ''; }
+function apiSetToken(t) { API_CONFIG.adminToken = t; localStorage.setItem('fbs-admin-token', t); }
+
+// 统一请求封装
+async function apiRequest(endpoint, options = {}) {
+    const { method = 'GET', body, needAuth = false, needAdmin = false } = options;
+    const headers = { 'Content-Type': 'application/json' };
+    if (needAuth) { const t = apiGetToken(); if (t) headers['Authorization'] = 'Bearer ' + t; }
+    if (needAdmin) { if (!API_CONFIG.adminToken) throw new Error('Admin token required'); headers['X-Admin-Token'] = API_CONFIG.adminToken; }
+    if (API_CONFIG.mockMode) return apiMockHandler(endpoint, options);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    try {
+        const resp = await fetch(API_CONFIG.baseURL + endpoint, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal });
+        if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.message || 'HTTP ' + resp.status); }
+        return await resp.json();
+    } catch (e) {
+        if (options._retries < API_CONFIG.retryCount) { options._retries = (options._retries || 0) + 1; return apiRequest(endpoint, options); }
+        throw e;
+    } finally { clearTimeout(timer); }
+}
+
+// Mock处理器 — 模拟所有后端接口
+function apiMockHandler(endpoint, options) {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            const u = loadUser();
+            // 第三方登录
+            if (endpoint === '/auth/wechat') resolve({ code: 0, data: { token: 'mock_wx_' + Date.now(), user: { phone: '微信用户', level: '社交登录用户', role: 'normal_user' }, bindPhone: false } });
+            else if (endpoint === '/auth/qq') resolve({ code: 0, data: { token: 'mock_qq_' + Date.now(), user: { phone: 'QQ用户', level: '社交登录用户', role: 'normal_user' }, bindPhone: false } });
+            else if (endpoint === '/auth/apple') resolve({ code: 0, data: { token: 'mock_ap_' + Date.now(), user: { phone: 'Apple用户', level: '社交登录用户', role: 'normal_user' }, bindPhone: false } });
+            else if (endpoint === '/auth/phone-oneclick') resolve({ code: 0, data: { token: 'mock_1clk_' + Date.now(), user: { phone: options.body?.token ? '138****8888' : '', level: '一键登录用户', role: 'normal_user' } } });
+            // 手机号登录
+            else if (endpoint === '/auth/send-code') resolve({ code: 0, data: { success: true, expire: 300 } });
+            else if (endpoint === '/auth/phone-login') {
+                const { phone, code } = options.body || {};
+                if (code !== '1234') resolve({ code: 1001, message: '验证码错误' });
+                else resolve({ code: 0, data: { token: 'mock_ph_' + Date.now(), user: { phone: phone?.slice(0, 3) + '****' + phone?.slice(7) || '138****8888', level: '普通球迷', role: 'normal_user' } } });
+            } else if (endpoint === '/auth/admin-login') {
+                const { phone, password } = options.body || {};
+                if (password && password.length >= 8 && /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+                    const adminToken = 'admin_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+                    apiSetToken(adminToken);
+                    resolve({ code: 0, data: { token: 'mock_adm_' + Date.now(), adminToken, user: { phone: phone || '管理员', level: '系统管理员', role: 'super_admin' } } });
+                } else resolve({ code: 1002, message: '密码强度不足' });
+            // 账号管理
+            } else if (endpoint === '/user/bind-phone') resolve({ code: 0, data: { success: true } });
+            else if (endpoint === '/user/bindings') resolve({ code: 0, data: accountBindings });
+            else if (endpoint === '/user/unbind') resolve({ code: 0, data: { success: true } });
+            else if (endpoint === '/user/change-phone') resolve({ code: 0, data: { success: true } });
+            // 设备管理
+            else if (endpoint === '/user/devices') resolve({ code: 0, data: { devices: [{ id: 1, name: navigator.platform || '当前设备', current: true, lastLogin: new Date().toISOString() }, { id: 2, name: '桌面浏览器 Chrome', current: false, lastLogin: new Date(Date.now() - 86400000).toISOString() }] } });
+            else if (endpoint === '/user/logout-device') resolve({ code: 0, data: { success: true } });
+            // 数据同步
+            else if (endpoint === '/user/sync') resolve({ code: 0, data: { synced: true } });
+            // 账号注销
+            else if (endpoint === '/user/delete') resolve({ code: 0, data: { success: true, deleteAfter: 7 } });
+            // AI管理接口（403给普通用户）
+            else if (endpoint.startsWith('/admin/')) {
+                if (!options.needAdmin && getUserRole() !== 'super_admin') resolve({ code: 403, message: 'Forbidden: admin access required' });
+                else if (endpoint === '/admin/ai/params') resolve({ code: 0, data: aiConfig });
+                else if (endpoint === '/admin/ai/train') resolve({ code: 0, data: { success: true, message: '训练已启动' } });
+                else if (endpoint === '/admin/ai/logs') resolve({ code: 0, data: aiEvolutionLog.slice(-50) });
+                else if (endpoint === '/admin/ai/rollback') resolve({ code: 0, data: { success: true } });
+                else resolve({ code: 0, data: {} });
+            // 比赛数据
+            } else if (endpoint === '/matches/live') resolve({ code: 0, data: matchData.filter(m => m.status === 'live') });
+            else if (endpoint === '/matches/upcoming') resolve({ code: 0, data: matchData.filter(m => m.status === 'upcoming') });
+            else if (endpoint === '/matches/odds') resolve({ code: 0, data: matchData.map(m => ({ id: m.id, odds: m.odds, time: new Date().toISOString() })) });
+            else resolve({ code: 0, data: {} });
+        }, 200 + Math.random() * 300);
+    });
+}
+// API状态检查
+async function checkAPIStatus() { try { const r = await apiRequest('/status'); return r.code === 0; } catch { return false; } }
+
 // ======================== 数据层 ========================
 const TEAM_DB = {
     '巴西':  {code:'BRA',flag:'🇧🇷',color:'#F4C542',form:['w','w','w','d','w']},
