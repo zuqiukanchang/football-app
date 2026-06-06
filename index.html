@@ -790,8 +790,10 @@
         <div class="detail-tab" data-tab="stats">📊 统计</div>
         <div class="detail-tab" data-tab="h2h">🤝 交锋</div>
         <div class="detail-tab" data-tab="standings">🏆 积分</div>
+        <div class="detail-tab" data-tab="preview">📝 前瞻</div>
         <div class="detail-tab" data-tab="share">📤 分享</div>
     </div>
+    <div id="panel-preview" class="tab-panel"></div>
     <div id="panel-events" class="tab-panel active"></div>
     <div id="panel-lineups" class="tab-panel"></div>
     <div id="panel-predict" class="tab-panel">
@@ -2249,7 +2251,7 @@ function renderDetail(matchId){
     $$('#page-detail .tab-panel').forEach(p=>{p.classList.remove('active');p.style.display='none'});
     const fp=$('#panel-events');if(fp){fp.classList.add('active');fp.style.display='block'}
     // 渲染各面板
-    renderEvents(m);renderLineups(m);renderPredictPanel(m);renderStats(m);renderH2H(m);renderStandings(m);renderShare(m);
+    renderEvents(m);renderLineups(m);renderPredictPanel(m);renderStats(m);renderH2H(m);renderStandings(m);renderPreview(m);renderShare(m);
     // 更新底部操作栏
     updateDetailBottomBar(m);
     // 更新时间戳
@@ -2376,6 +2378,87 @@ function renderStandings(m) {
             <span class="standings-form-dots">${t.form.map(f=>`<span style="background:${f==='w'?'var(--green-bright)':f==='d'?'var(--orange)':'var(--red-bright)'}"></span>`).join('')}</span>
         </div>`).join('')}
     </div>`;
+}
+
+// ======================== 详情页 — 前瞻面板 ========================
+// AI接口预留: 设置 window.AI_API_KEY 后自动调用外部AI
+let aiApiEnabled = !!localStorage.getItem('fbs-ai-key');
+function enableAIApi(key) { localStorage.setItem('fbs-ai-key', key); aiApiEnabled = true; showToast('✅ AI接口已启用'); if(currentPage==='detail'&&currentDetailId)renderDetail(currentDetailId); }
+function disableAIApi() { localStorage.removeItem('fbs-ai-key'); aiApiEnabled = false; showToast('AI接口已关闭'); }
+
+async function generateAIPreview(m) {
+    // 若配置了API Key则调用外部AI
+    const apiKey = localStorage.getItem('fbs-ai-key');
+    if (apiKey && aiApiEnabled) {
+        try {
+            const prompt = buildAIPrompt(m);
+            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                method:'POST', headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+                body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:prompt}]})
+            });
+            if (resp.ok) { const data = await resp.json(); return data.content?.[0]?.text || templateAIPreview(m); }
+        } catch(e) { console.warn('[AI] API调用失败，使用模板分析:', e.message); }
+    }
+    return templateAIPreview(m);
+}
+
+function buildAIPrompt(m) {
+    const ht = TEAM_DB[m.home]||{}, at = TEAM_DB[m.away]||{};
+    const h2hKey = m.home+'-'+m.away; const h2h = H2H_DB[h2hKey];
+    const sd = STANDINGS_DB[m.league];
+    return `你是一位专业的足球分析师。请用中文写一份约300字的赛前分析报告，包含以下结构：
+1. 比赛概况（${m.home} vs ${m.away}，${m.league}，${m.time}，${m.stadium}，${m.weather}）
+2. 主队分析（近期状态：${(ht.form||[]).join('/')}，AI主胜概率${m.aiPredict.win}%）
+3. 客队分析（近期状态：${(at.form||[]).join('/')}，AI客胜概率${m.aiPredict.loss}%）
+4. 历史交锋（${h2h?h2h.homeWins+'胜'+h2h.draws+'平'+h2h.awayWins+'负，近5场：'+h2h.last5.join('/'):'暂无数据'}）
+5. 预测结论（AI推荐${m.aiPredict.recommend}，比分预测${m.predictionPlans?.sijiliang?.score||''}）
+请用简洁专业的语言，每段2-3句话即可。`;
+}
+
+function templateAIPreview(m) {
+    const ht = TEAM_DB[m.home]||{}, at = TEAM_DB[m.away]||{};
+    const h2hKey = m.home+'-'+m.away; const h2h = H2H_DB[h2hKey];
+    const pp = m.predictionPlans?.sijiliang;
+    const hForm = (ht.form||[]).slice(-5); const aForm = (at.form||[]).slice(-5);
+    const hW = hForm.filter(f=>f==='w').length, aW = aForm.filter(f=>f==='w').length;
+    const hFormDesc = hW>=4?'状态火热':hW>=2?'表现稳定':'状态起伏';
+    const aFormDesc = aW>=4?'状态火热':aW>=2?'表现稳定':'状态起伏';
+
+    let html = `<div style="padding:8px 0;line-height:1.9;font-size:.82rem;color:var(--text)">
+        <div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:10px;border-left:3px solid var(--gold)">
+            <div style="font-size:.88rem;font-weight:700;color:var(--gold);margin-bottom:8px">📝 赛前分析报告</div>
+            <p><strong>🏟 比赛概况：</strong>${m.league}焦点战，<strong>${m.home}</strong>坐镇${m.stadium}迎战<strong>${m.away}</strong>。${m.weather}，${m.time}开球。</p>
+        </div>
+
+        <div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:10px">
+            <div style="font-weight:700;color:var(--red-bright);margin-bottom:6px">🔴 主队 · ${m.home}</div>
+            <p>近5场${hForm.join(' ').toUpperCase().replace(/W/g,'胜').replace(/D/g,'平').replace(/L/g,'负')}，${hFormDesc}（${hW}胜${hForm.filter(f=>f==='d').length}平${hForm.filter(f=>f==='l').length}负）。AI模型给出<strong style="color:var(--red-bright)">${m.aiPredict.win}%</strong>主胜概率。${m.aiPredict.stars>=4?'整体优势明显，值得看好。':m.aiPredict.stars>=3?'具备一定竞争力。':'需要超常发挥。'}</p>
+        </div>
+
+        <div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:10px">
+            <div style="font-weight:700;color:var(--blue-accent);margin-bottom:6px">🔵 客队 · ${m.away}</div>
+            <p>近5场${aForm.join(' ').toUpperCase().replace(/W/g,'胜').replace(/D/g,'平').replace(/L/g,'负')}，${aFormDesc}（${aW}胜${aForm.filter(f=>f==='d').length}平${aForm.filter(f=>f==='l').length}负）。AI客胜概率<strong style="color:var(--blue-accent)">${m.aiPredict.loss}%</strong>。${m.aiPredict.loss>35?'客场具备抢分能力。':m.aiPredict.loss>20?'客场作战压力较大。':'客场难度极大。'}</p>
+        </div>`;
+
+    if (h2h) {
+        html += `<div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:10px">
+            <div style="font-weight:700;color:var(--gold);margin-bottom:6px">🤝 历史交锋</div>
+            <p>双方近${h2h.total}次交手，${m.home}<strong>${h2h.homeWins}胜${h2h.draws}平${h2h.awayWins}负</strong>。近5场比分：${h2h.last5.join('、')}。${h2h.homeWins>h2h.awayWins?m.home+'心理占优。':h2h.homeWins<h2h.awayWins?m.away+'心理占优。':'双方不分伯仲。'}</p></div>`;
+    }
+
+    html += `<div style="background:linear-gradient(135deg,var(--card),#3D1A1A);border-radius:12px;padding:16px;border:1px solid var(--gold)">
+        <div style="font-weight:700;color:var(--gold);margin-bottom:8px">🤖 AI综合研判</div>
+        <p>8因子模型评分：<strong style="color:var(--gold)">${'★'.repeat(m.aiPredict.stars)}${'☆'.repeat(5-m.aiPredict.stars)}</strong>（${m.aiPredict.stars>=4?'高置信度':m.aiPredict.stars>=3?'中等置信度':'低置信度'}）</p>
+        <p>🎯 <strong>推荐方向：${m.aiPredict.recommend}</strong>（主${m.aiPredict.win}% / 平${m.aiPredict.draw}% / 客${m.aiPredict.loss}%）</p>
+        ${pp?`<p>⚽ 比分预测：${pp.score} · 半全场：${pp.halffull} · 总进球：${pp.totalGoals}</p>`:''}
+        <p style="font-size:.7rem;color:var(--sub);margin-top:8px">⚠️ 分析仅供参考，不构成投注建议。${aiApiEnabled?'🔗 外部AI已启用':'💡 个人中心→AI设置可接入Claude API获取更深层分析。'}</p></div></div>`;
+    return html;
+}
+
+function renderPreview(m) {
+    const panel = $('#panel-preview'); if (!panel) return;
+    panel.innerHTML = '<div style="text-align:center;padding:20px;color:var(--sub)">⏳ AI分析中...</div>';
+    generateAIPreview(m).then(html => { panel.innerHTML = html; });
 }
 
 // ======================== 详情页 — 分享面板 ========================
@@ -3300,6 +3383,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleTheme()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
+                <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showToast('帮助中心开发中')"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
@@ -3412,6 +3496,28 @@ function showBetHistory(){
     modal.querySelector('.modal-text').innerHTML=summary+list;
     modal.querySelector('.modal-btn-confirm').textContent='关闭';
     modal.querySelector('.modal-btn-confirm').onclick=closeLogoutModal;
+    modal.classList.add('show');
+}
+function showAISettings() {
+    const modal = $('#logoutModal'); if (!modal) return;
+    const currentKey = localStorage.getItem('fbs-ai-key') || '';
+    modal.querySelector('.modal-title').textContent = '🤖 AI 接口设置';
+    modal.querySelector('.modal-text').innerHTML = `
+        <div style="text-align:left;font-size:.82rem;line-height:1.7">
+        <p>接入 <strong style="color:var(--gold)">Claude API</strong> 后，前瞻分析将由AI实时生成，质量远超模板。</p>
+        <p style="font-size:.73rem;color:var(--sub);margin:8px 0">获取API Key：<a href="https://console.anthropic.com" target="_blank" style="color:var(--blue-accent)">console.anthropic.com</a></p>
+        <input type="password" id="aiKeyInput" placeholder="输入 API Key (sk-ant-...)" value="${currentKey}" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.8rem;margin:8px 0;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+        ${aiApiEnabled?'<p style="color:var(--green-bright);font-size:.75rem">✅ 当前已启用AI接口</p>':''}
+        </div>`;
+    modal.querySelector('.modal-btn-cancel').textContent = aiApiEnabled ? '关闭AI' : '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = () => { if (aiApiEnabled) { disableAIApi(); closeLogoutModal(); } else closeLogoutModal(); };
+    modal.querySelector('.modal-btn-confirm').textContent = '保存';
+    modal.querySelector('.modal-btn-confirm').onclick = () => {
+        const key = document.getElementById('aiKeyInput')?.value?.trim();
+        if (key && key.startsWith('sk-ant-')) { enableAIApi(key); closeLogoutModal(); }
+        else if (!key) { disableAIApi(); closeLogoutModal(); }
+        else { showToast('API Key格式不正确，需以sk-ant-开头'); }
+    };
     modal.classList.add('show');
 }
 function showLogoutModal() {
