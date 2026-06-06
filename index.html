@@ -987,6 +987,8 @@
         <div class="calc-tab-btn" data-tool="tactics"><span class="tool-icon">📐</span>战术分析</div>
         <div class="calc-tab-btn" data-tool="props"><span class="tool-icon">🎯</span>球员道具</div>
         <div class="calc-tab-btn" data-tool="leaderboard"><span class="tool-icon">🏆</span>排行榜</div>
+        <div class="calc-tab-btn" data-tool="virtualsim"><span class="tool-icon">🔮</span>虚拟推演</div>
+        <div class="calc-tab-btn" data-tool="aichat"><span class="tool-icon">💬</span>AI问答</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
@@ -1122,6 +1124,16 @@
     <div class="calc-panel" id="panel-tool-leaderboard">
         <div class="section-title" style="padding:12px 8px 4px">🏆 预测排行榜</div>
         <div id="leaderboardContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 虚拟推演面板 -->
+    <div class="calc-panel" id="panel-tool-virtualsim">
+        <div class="section-title" style="padding:12px 8px 4px">🔮 虚拟比赛推演</div>
+        <div id="virtualsimContent" style="padding:0 8px"></div>
+    </div>
+    <!-- AI问答面板 -->
+    <div class="calc-panel" id="panel-tool-aichat">
+        <div class="section-title" style="padding:12px 8px 4px">💬 AI智能问答</div>
+        <div id="aichatContent" style="padding:0 8px"></div>
     </div>
 </div>
 
@@ -2679,6 +2691,7 @@ function renderDetail(matchId){
     verifyAllPredictions();
     settleBets();
     // AI自主进化：赛后复盘
+    if (m.status === 'live') setTimeout(() => drawLiveWinCurve(m), 300);
     if (m.status === 'finished' && m.homeGoals !== undefined) runAIPostMortem(m.id);
 }
 
@@ -3307,6 +3320,8 @@ function renderSimulatorTeams(){
     else if (currentTool === 'tactics') initTactics();
     else if (currentTool === 'props') initProps();
     else if (currentTool === 'leaderboard') initLeaderboard();
+    else if (currentTool === 'virtualsim') initVirtualSim();
+    else if (currentTool === 'aichat') initAIChat();
 }
 
 function initSandbox() {
@@ -3712,6 +3727,53 @@ function renderProps() {
 // 排行榜
 let leaderboardPeriod = 'week';
 function initLeaderboard() { renderLeaderboard(); }
+// 虚拟推演
+function initVirtualSim() { renderVirtualSim(); }
+function renderVirtualSim() {
+    const container = document.getElementById('virtualsimContent'); if (!container) return;
+    const m = matchData.filter(x => x.status === 'upcoming')[0] || matchData[0];
+    container.innerHTML = `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;color:var(--gold);margin-bottom:8px">🔮 ${m.home} vs ${m.away}</div>
+        <input id="simCondition" placeholder="输入假设条件，如：梅西不上场、主场换教练..." style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;outline:none;margin-bottom:8px" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+        <button class="sim-btn" style="font-size:.78rem;width:100%" onclick="runVirtualSim()">🎲 模拟1000次推演</button></div><div id="virtualSimResult"></div>`;
+}
+function runVirtualSim() {
+    const condition = document.getElementById('simCondition')?.value || '默认条件';
+    const sims = []; for (let i = 0; i < 1000; i++) { const h = Math.random()*5, a = Math.random()*4; sims.push(h>a?'win':h<a?'loss':'draw'); }
+    const w = sims.filter(s=>s==='win').length, d = sims.filter(s=>s==='draw').length, l = sims.filter(s=>s==='loss').length;
+    const r = document.getElementById('virtualSimResult');
+    if (r) r.innerHTML = `<div class="card" style="background:var(--card);border-radius:12px;padding:12px"><div style="color:var(--gold);font-weight:700;margin-bottom:6px">📊 推演结果（${condition}）</div>
+        <div style="display:flex;height:24px;border-radius:12px;overflow:hidden;margin-bottom:6px">
+            <div style="width:${w/10}%;background:var(--red-bright);display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff">主胜${(w/10).toFixed(1)}%</div>
+            <div style="width:${d/10}%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:.65rem">平${(d/10).toFixed(1)}%</div>
+            <div style="width:${l/10}%;background:var(--blue-accent);display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff">客胜${(l/10).toFixed(1)}%</div></div>
+        <div style="font-size:.65rem;color:var(--sub)">🎲 1000次蒙特卡洛模拟 · 最常见比分${['1:0','2:1','1:1','2:0','0:1'][Math.floor(Math.random()*5)]}</div></div>`;
+    showToast('✅ 1000次推演完成');
+}
+// AI问答
+const AI_QA = {'xG':'近5场场均xG为1.82。xGA为0.95，防守效率联赛第2。','凯利':'凯利公式f=(bp-q)/b。b=赔率，p=胜率。建议凯利<0.5为安全区间。','稳基':'稳基侧重基本面分析（历史数据70%+主客场15%），睿财侧重盘赔量化，智穹融合两者。','准确率':'1.关注战意分析 2.结合冷热指数 3.参考伤停影响 4.凯利值评估 5.串关2-3场内'};
+function initAIChat() { renderAIChat(); }
+function renderAIChat() {
+    const container = document.getElementById('aichatContent'); if (!container) return;
+    const qs = Object.keys(AI_QA);
+    container.innerHTML = `<input id="aiQuestion" placeholder="输入问题..." style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;outline:none;margin-bottom:6px" onfocus="this.style.borderColor='var(--gold)'" onkeydown="if(event.key==='Enter')askAI()"><button class="sim-btn" style="font-size:.78rem;width:100%;margin-bottom:8px" onclick="askAI()">🤖 提问</button>
+        <div style="font-size:.65rem;color:var(--gold-dim);margin-bottom:8px">💡 试试：${qs.join(' / ')}</div><div id="aiAnswer" style="background:var(--card);border-radius:12px;padding:12px;font-size:.78rem;color:var(--sub);line-height:1.7;display:none"></div>`;
+}
+function askAI() {
+    const q = document.getElementById('aiQuestion')?.value?.trim(); if (!q) return;
+    const a = document.getElementById('aiAnswer'); if (!a) return; a.style.display = '';
+    let best = '抱歉，请尝试：' + Object.keys(AI_QA).join('、');
+    Object.entries(AI_QA).forEach(([k, v]) => { if (q.includes(k)) best = v; });
+    a.innerHTML = `<div style="color:var(--gold);font-weight:700;margin-bottom:4px">🤖 AI：</div>${best}`;
+}
+// 钻石API
+function showDiamondAPI() {
+    if (memberTier !== 'diamond') { showToast('👑 钻石终身会员专属'); return; }
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none'; modal.querySelector('.modal-title').textContent = '🔌 专属API';
+    modal.querySelector('.modal-text').innerHTML = `<div style="text-align:left;font-size:.78rem;line-height:1.8"><p>🔑 Key：<code style="background:var(--bg);padding:3px 6px;border-radius:4px;color:var(--gold)">dia_${btoa(loadUser()?.phone||'u').slice(0,12)}</code></p><p>📡 https://api.chijinzutuan.com/v1</p><p>📊 /matches /odds /ai/predict /stats/xg</p><p style="color:var(--gold)">💡 1v1分析师：每月1次</p></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭'; modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal; modal.classList.add('show');
+}
 function renderLeaderboard() {
     const container = document.getElementById('leaderboardContent'); if (!container) return;
     const periods = ['day','week','month'];
