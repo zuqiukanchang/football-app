@@ -984,6 +984,9 @@
         <div class="calc-tab-btn" data-tool="heatmap"><span class="tool-icon">🌡</span>冷热指数</div>
         <div class="calc-tab-btn" data-tool="motivation"><span class="tool-icon">🎯</span>战意分析</div>
         <div class="calc-tab-btn" data-tool="injury"><span class="tool-icon">🏥</span>伤停影响</div>
+        <div class="calc-tab-btn" data-tool="tactics"><span class="tool-icon">📐</span>战术分析</div>
+        <div class="calc-tab-btn" data-tool="props"><span class="tool-icon">🎯</span>球员道具</div>
+        <div class="calc-tab-btn" data-tool="leaderboard"><span class="tool-icon">🏆</span>排行榜</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
@@ -1104,6 +1107,21 @@
     <div class="calc-panel" id="panel-tool-injury">
         <div class="section-title" style="padding:12px 8px 4px">🏥 伤停影响分析</div>
         <div id="injuryContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 战术分析面板 -->
+    <div class="calc-panel" id="panel-tool-tactics">
+        <div class="section-title" style="padding:12px 8px 4px">📐 战术分析</div>
+        <div id="tacticsContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 球员道具面板 -->
+    <div class="calc-panel" id="panel-tool-props">
+        <div class="section-title" style="padding:12px 8px 4px">🎯 球员道具预测</div>
+        <div id="propsContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 排行榜面板 -->
+    <div class="calc-panel" id="panel-tool-leaderboard">
+        <div class="section-title" style="padding:12px 8px 4px">🏆 预测排行榜</div>
+        <div id="leaderboardContent" style="padding:0 8px"></div>
     </div>
 </div>
 
@@ -3286,6 +3304,9 @@ function renderSimulatorTeams(){
     else if (currentTool === 'heatmap') initHeatmap();
     else if (currentTool === 'motivation') initMotivation();
     else if (currentTool === 'injury') initInjury();
+    else if (currentTool === 'tactics') initTactics();
+    else if (currentTool === 'props') initProps();
+    else if (currentTool === 'leaderboard') initLeaderboard();
 }
 
 function initSandbox() {
@@ -3656,6 +3677,52 @@ function renderMotivation() {
 }
 // 伤停影响
 function initInjury() { renderInjury(); }
+// 战术分析
+function initTactics() { renderTactics(); }
+function renderTactics() {
+    const container = document.getElementById('tacticsContent'); if (!container) return;
+    const m = matchData.find(x => x.status !== 'finished') || matchData[0];
+    container.innerHTML = `<div style="margin-bottom:12px"><select onchange="renderTactics()" id="tacticsMatch" style="width:100%;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem">${matchData.filter(x=>x.status!=='finished').slice(0,10).map(x=>`<option value="${x.id}">${x.home} vs ${x.away}</option>`).join('')}</select></div>
+        <canvas id="tacticsChart" width="360" height="160" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:8px"></canvas>
+        <div style="font-size:.68rem;color:var(--sub);text-align:center">📊 进攻压力波浪图 · 红色=主队攻势 · 蓝色=客队攻势</div>`;
+    setTimeout(() => {
+        const c = document.getElementById('tacticsChart'); if (!c) return;
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#2C1515'; ctx.fillRect(0, 0, 360, 160);
+        const points = []; for (let i = 0; i < 40; i++) points.push({ h: 30+Math.random()*60-20*(i>20?1:0), a: 20+Math.random()*50+15*(i>25?1:0) });
+        ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 2; ctx.beginPath(); points.forEach((p, i) => { const x = 15 + i * 8.5, y = 140 - p.h; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }); ctx.stroke();
+        ctx.strokeStyle = '#4A90D9'; ctx.lineWidth = 2; ctx.beginPath(); points.forEach((p, i) => { const x = 15 + i * 8.5, y = 140 - p.a; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }); ctx.stroke();
+        ctx.fillStyle = '#D4A88C'; ctx.font = '9px sans-serif'; ctx.fillText(m.home, 10, 14); ctx.fillStyle = '#4A90D9'; ctx.fillText(m.away, 50, 14);
+    }, 150);
+}
+// 球员道具预测
+function initProps() { renderProps(); }
+function renderProps() {
+    const container = document.getElementById('propsContent'); if (!container) return;
+    const players = ['哈兰德','姆巴佩','凯恩','萨拉赫','武磊','维尼修斯','贝林厄姆','孙兴慜'];
+    const props = [{label:'进球',icon:'⚽',base:8},{label:'助攻',icon:'🎯',base:6},{label:'射门>3',icon:'👟',base:35},{label:'黄牌',icon:'🟨',base:15},{label:'全场最佳',icon:'⭐',base:12}];
+    container.innerHTML = players.map(p => {
+        const goalProb = (3+Math.random()*35).toFixed(1);
+        const assistProb = (2+Math.random()*25).toFixed(1);
+        return `<div class="card" style="background:var(--card);border-radius:12px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;color:#1A0A0A;font-weight:700;font-size:.65rem;flex-shrink:0">${p[0]}</div>
+            <div style="flex:1"><div style="font-weight:600;font-size:.78rem">${p}</div><div style="font-size:.62rem;color:var(--sub)">⚽ ${goalProb}% 🎯 ${assistProb}% ⭐ ${(5+Math.random()*20).toFixed(1)}%</div></div>
+            <div style="font-size:.65rem;color:var(--gold)">${goalProb>20?'🔥':goalProb>10?'推荐':'关注'}</div></div>`;
+    }).join('');
+}
+// 排行榜
+let leaderboardPeriod = 'week';
+function initLeaderboard() { renderLeaderboard(); }
+function renderLeaderboard() {
+    const container = document.getElementById('leaderboardContent'); if (!container) return;
+    const periods = ['day','week','month'];
+    const names = ['足球大师','预测之神','AI猎手','球探007','金靴传奇','数据帝','冷门杀手','稳胆王','盘赔专家','进球机器'];
+    const users = names.map((n,i)=>({name:n,rate:95-i*4+Math.floor(Math.random()*8),count:20+Math.floor(Math.random()*80),streak:Math.floor(Math.random()*12)+1,badge:i===0?'👑':i===1?'🥈':i===2?'🥉':''}));
+    container.innerHTML = `<div style="display:flex;gap:4px;margin-bottom:8px">${periods.map(p=>`<button class="sort-btn${leaderboardPeriod===p?' active':''}" style="flex:1;justify-content:center;font-size:.65rem" onclick="leaderboardPeriod='${p}';renderLeaderboard()">${p==='day'?'日榜':p==='week'?'周榜':'月榜'}</button>`).join('')}</div>
+        ${users.map((u,i)=>`<div class="card" style="background:var(--card);border-radius:10px;padding:10px;margin-bottom:4px;display:flex;align-items:center;gap:10px">
+            <span style="font-weight:700;color:${i<3?'var(--gold)':'var(--sub)'};min-width:18px">${u.badge||i+1}</span>
+            <div style="flex:1"><div style="font-weight:600;font-size:.78rem">${u.name}</div><div style="font-size:.62rem;color:var(--sub)">${u.count}次预测 · 连续${u.streak}场命中</div></div>
+            <span style="font-weight:700;color:var(--gold)">${u.rate}%</span></div>`).join('')}`;
+}
 function renderInjury() {
     const container = document.getElementById('injuryContent'); if (!container) return;
     const upcoming = matchData.filter(m => m.status === 'upcoming').slice(0, 6);
