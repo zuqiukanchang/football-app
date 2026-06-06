@@ -857,6 +857,7 @@
     <div class="sticky-nav">
         <div class="app-header">
             <span class="app-title"><svg width="26" height="26" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:2px"><defs><radialGradient id="sg" cx="50%" cy="40%"><stop offset="0%" stop-color="#E8C84C"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#8B6914"/></radialGradient></defs><circle cx="50" cy="50" r="46" fill="url(#sg)" stroke="#6B4513" stroke-width="2"/><text x="50" y="58" text-anchor="middle" font-size="24" font-weight="bold" fill="#4A2020">龙</text></svg>足球看场</span>
+            <span class="data-source-indicator ${API_CONFIG.mockMode?'src-mock':'src-live'}" style="font-size:.55rem;padding:2px 8px;border-radius:8px">${API_CONFIG.mockMode?'MOCK':'LIVE'}</span>
             <span style="display:flex;align-items:center;gap:8px">
                 <button id="installBtn" style="display:none;padding:4px 10px;border-radius:12px;font-size:.68rem;background:var(--gold);color:#000;border:none;cursor:pointer;font-weight:600" onclick="installApp()">📲 安装</button>
                 <span class="header-date" id="headerDate"></span>
@@ -1395,6 +1396,18 @@ const API_CONFIG = {
     adminToken: localStorage.getItem('fbs-admin-token') || '',
 };
 function apiSetMock(mode) { API_CONFIG.mockMode = mode; localStorage.setItem('fbs-api-mock', mode ? '1' : '0'); }
+function toggleAPIMode() { const newMode = !API_CONFIG.mockMode; apiSetMock(newMode); showToast(newMode ? '🔶 已切换到模拟模式' : '🔗 已切换到生产模式: ' + API_CONFIG.baseURL); if (currentPage === 'profile') renderProfile(); if (currentTool === 'deploy') renderAdminPanel(); }
+async function testAPIConnection() {
+    const result = document.getElementById('apiTestResult'); if (!result) return;
+    result.innerHTML = '⏳ 测试中...';
+    const endpoints = ['/status', '/auth/send-code', '/matches/live', '/stats/xg'];
+    let html = '';
+    for (const ep of endpoints) {
+        try { const r = await apiRequest(ep); html += `<div style="color:var(--green-bright)">✅ ${ep} → 200 OK</div>`; }
+        catch (e) { html += `<div style="color:var(--red-bright)">❌ ${ep} → ${e.message}</div>`; }
+    }
+    result.innerHTML = html + `<div style="margin-top:4px;color:var(--gold)">${API_CONFIG.mockMode?'⚠️ 当前为模拟模式，切换到生产模式后测试真实连接':'测试完成'}</div>`;
+}
 function apiGetToken() { const u = loadUser(); return u?.token || ''; }
 function apiSetToken(t) { API_CONFIG.adminToken = t; localStorage.setItem('fbs-admin-token', t); }
 
@@ -6656,8 +6669,8 @@ function addAuditLog(action) { aiConfig.auditLog.unshift({action,time:Date.now()
 function renderAdminPanel() {
     const container = document.getElementById('adminContent'); if (!container) return;
     const report = getAIEvolutionReport();
-    const tabs = ['params','evolution','monitor','security','infosec','analytics','launch'];
-    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全',infosec:'🏰 安全架构',analytics:'📈 数据分析',launch:'🚀 上线清单'};
+    const tabs = ['params','evolution','monitor','security','infosec','analytics','launch','deploy'];
+    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全',infosec:'🏰 安全架构',analytics:'📈 数据分析',launch:'🚀 上线清单',deploy:'🔌 后端对接'};
     let html = `<div style="padding:12px 16px">
         <div style="background:linear-gradient(135deg,#3D1A1A,#5C2020);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--gold)">
             <div style="color:var(--gold);font-weight:700;font-size:.88rem">🔑 AI系统设置 · ${getUserRole()==='super_admin'?'总账户':'普通用户'}</div>
@@ -6676,6 +6689,21 @@ function renderAdminPanel() {
         html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📊 实时准确率</div>${['sijiliang','ruicai','zhiqiong'].map(p=>{const r=report[p]||{};return`<div class="stat-row"><span>${r.name||p}</span><span style="color:var(--gold)">${r.rate||0}%</span><span style="font-size:.7rem;color:var(--sub)">${r.trend||'--'} ${r.total||0}次</span></div>`;}).join('')}</div>
         <canvas id="adminMonitorChart" width="360" height="120" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:10px"></canvas>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🚨 异常告警</div><div style="font-size:.73rem;color:var(--sub)">${(report.sijiliang?.rate||0)<60?'⚠️ 稳基准度下降，需关注':report.ruicai?.rate||0<55?'⚠️ 睿财准确率偏低':report.zhiqiong?.rate||0<65?'⚠️ 智穹需调整参数':'✅ 所有AI运行正常'}</div></div>`;
+    } else if (adminTab === 'deploy') {
+        const apiStatus = API_CONFIG.mockMode ? '🔶 模拟模式' : '🟢 生产模式';
+        const mockDesc = API_CONFIG.mockMode ? '当前使用Mock数据，所有API调用返回模拟响应' : '已连接后端服务，所有API调用发送到真实服务器';
+        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;border-left:3px solid ${API_CONFIG.mockMode?'var(--orange)':'var(--green-bright)'}">
+            <div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔌 API连接状态</div>
+            <div style="font-size:1rem;font-weight:700;margin-bottom:4px">${apiStatus}</div><div style="font-size:.72rem;color:var(--sub);margin-bottom:8px">${mockDesc}</div>
+            <div class="stat-row" style="font-size:.7rem"><span>API地址</span><span style="color:var(--gold)">${API_CONFIG.baseURL}</span></div>
+            <div class="stat-row" style="font-size:.7rem"><span>超时</span><span>${API_CONFIG.timeout/1000}s</span></div>
+            <div class="stat-row" style="font-size:.7rem"><span>重试</span><span>${API_CONFIG.retryCount}次</span></div>
+            <button class="sim-btn" style="margin-top:8px;width:100%;font-size:.75rem" onclick="toggleAPIMode()">${API_CONFIG.mockMode?'🔗 切换到生产模式':'🔶 切换到模拟模式'}</button>
+            <button class="sim-btn secondary" style="margin-top:4px;width:100%;font-size:.7rem" onclick="testAPIConnection()">🔍 测试API连接</button>
+            <div id="apiTestResult" style="margin-top:8px;font-size:.7rem"></div></div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📡 已对接端点（20+）</div><div style="font-size:.68rem;color:var(--sub);line-height:1.8">
+             🔐 /auth/* — 登录/注册/微信/QQ/Apple<br>👤 /user/* — 绑定/设备/同步/注销<br>💰 /wallet/* — 充值/提现/交易记录<br>👑 /member/* — 会员/定价/升级<br>⚽ /matches/* — 赛程/比分/赔率<br>📊 /stats/* — xG/盘赔/H2H/球员<br>🤖 /ai/* — 预测/回测/凯利<br>🛡 /admin/* — AI参数/训练/日志</div></div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📋 对接步骤</div><div style="font-size:.7rem;color:var(--sub);line-height:1.8">1️⃣ 部署后端服务到服务器<br>2️⃣ 配置CORS允许前端域名<br>3️⃣ 修改API_CONFIG.baseURL为后端地址<br>4️⃣ 设置API_CONFIG.mockMode=false<br>5️⃣ 测试连接→确认所有端点返回200<br>6️⃣ 前端自动切换到生产模式</div></div>`;
     } else if (adminTab === 'launch') {
         const checklist = [
             { item: '真实数据源接入', status: '✅ 代码已就绪（需网络）', detail: 'football.json CDN + GitHub双源' },
