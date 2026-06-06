@@ -3823,7 +3823,34 @@ function renderMotivation() {
             <div style="font-size:.68rem;color:var(--gold);margin-top:4px">📊 战意指数对比 · ${impact}</div></div>`;
     }).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无数据</div>';
 }
-// 伤停影响
+// ======================== 球员深度数据库 ========================
+const PLAYER_DB = {};
+const INJURY_TYPES = ['肌肉拉伤','韧带损伤','骨折','半月板撕裂','脚踝扭伤','肩部脱臼','累计黄牌停赛','红牌停赛','流感','跟腱炎'];
+const POSITIONS = ['GK','RB','CB','LB','CDM','CM','RW','LW','ST','CAM'];
+function getTeamPlayers(teamName) {
+    if (PLAYER_DB[teamName]) return PLAYER_DB[teamName];
+    const seed = teamName.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+    const players = [];
+    for (let i=1;i<=11;i++) {
+        const pos = POSITIONS[i-1]||'CM';
+        const importance = Math.round(5+(seed+i*7)%6); // 5-10
+        players.push({ num: i===1?1:10+i, name: teamName+pos, pos, goals: Math.floor(Math.random()*18), assists: Math.floor(Math.random()*12), minutes: 1800+Math.floor(Math.random()*1800), conversionRate: (8+Math.random()*22).toFixed(1)+'%', importance, keyPasses: Math.floor(Math.random()*60) });
+    }
+    // 伤停球员
+    const injuryCount = Math.floor(Math.random()*4);
+    const injuries = [];
+    for (let i=0;i<injuryCount;i++) {
+        const p = players[Math.floor(Math.random()*11)];
+        const days = Math.floor(Math.random()*60)+3;
+        const returnDate = new Date(Date.now()+days*86400000).toISOString().slice(0,10);
+        injuries.push({ name: p.name, pos: p.pos, reason: INJURY_TYPES[Math.floor(Math.random()*INJURY_TYPES.length)], impact: p.importance, returnDate, severity: p.importance>=8?'🔴 主力缺阵':p.importance>=6?'🟡 重要轮换':'🟢 替补缺阵' });
+    }
+    const totalImpact = injuries.reduce((s,i)=>s+i.impact,0);
+    const strengthChange = totalImpact>20?'⚠️ 实力下降显著（-'+(totalImpact*2)+'%）':totalImpact>10?'实力有所下降（-'+(totalImpact*1.5)+'%）':totalImpact>0?'轻微影响':'阵容完整';
+    PLAYER_DB[teamName] = { players, injuries, totalImpact, strengthChange };
+    return PLAYER_DB[teamName];
+}
+// 伤停影响（升级版）
 function initInjury() { renderInjury(); }
 // 战术分析
 function initTactics() { renderTactics(); }
@@ -3932,15 +3959,20 @@ function renderInjury() {
     const container = document.getElementById('injuryContent'); if (!container) return;
     const upcoming = matchData.filter(m => m.status === 'upcoming').slice(0, 6);
     container.innerHTML = upcoming.map(m => {
-        const hInj = Math.floor(Math.random()*4), aInj = Math.floor(Math.random()*4);
-        const hImpact = hInj*8+Math.floor(Math.random()*15), aImpact = aInj*8+Math.floor(Math.random()*15);
-        const hLevel = hImpact>30?'🔴 严重':hImpact>15?'🟡 中等':'🟢 轻微';
-        const aLevel = aImpact>30?'🔴 严重':aImpact>15?'🟡 中等':'🟢 轻微';
+        const hData = getTeamPlayers(m.home), aData = getTeamPlayers(m.away);
+        const renderTeamInjury = (data, teamName) => data.injuries.length ? data.injuries.map(i => `<div style="padding:4px 0;border-bottom:1px solid rgba(92,48,48,.2);font-size:.7rem">
+            <span style="color:var(--red-bright)">${i.severity.split(' ')[0]}</span> ${i.name} · ${i.pos} · ${i.reason}<br><span style="color:var(--sub);font-size:.62rem">预计${i.returnDate}复出 · 影响值：${i.impact}/10</span></div>`).join('') : '<div style="color:var(--green-bright);font-size:.7rem;padding:4px 0">✅ 阵容完整，无伤停</div>';
+        const hStats = data.players.slice(0,3);
         return `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
             <div style="font-weight:600;font-size:.82rem;margin-bottom:8px">${m.home} vs ${m.away}</div>
-            <div class="stat-row"><span>${m.home}</span><span style="font-size:.7rem">伤停${hInj}人</span><span style="color:${hLevel.includes('严重')?'var(--red-bright)':hLevel.includes('中等')?'var(--orange)':'var(--green-bright)'}">${hLevel}</span><span style="font-weight:700;color:var(--red-bright)">-${hImpact}%</span></div>
-            <div class="stat-row"><span>${m.away}</span><span style="font-size:.7rem">伤停${aInj}人</span><span style="color:${aLevel.includes('严重')?'var(--red-bright)':aLevel.includes('中等')?'var(--orange)':'var(--green-bright)'}">${aLevel}</span><span style="font-weight:700;color:var(--red-bright)">-${aImpact}%</span></div>
-            <div style="font-size:.65rem;color:var(--sub);margin-top:4px">📋 影响：进攻${Math.round((hImpact+aImpact)/2*0.6)}% 防守${Math.round((hImpact+aImpact)/2*0.4)}% 中场${Math.round((hImpact+aImpact)/2*0.5)}%</div></div>`;
+            <div style="color:var(--gold);font-weight:600;font-size:.73rem;margin-bottom:4px">${m.home}</div>
+            <div style="color:var(--red-bright);font-size:.7rem;margin-bottom:4px">${hData.strengthChange} · 伤停${hData.injuries.length}人 · 总影响${hData.totalImpact}/10</div>
+            ${renderTeamInjury(hData, m.home)}
+            <div style="font-size:.65rem;color:var(--gold-dim);margin-top:4px">🔥 核心：${hStats.map(p=>`${p.name}(${p.goals}球${p.assists}助)`).join(' ')}</div>
+            <div style="color:var(--gold);font-weight:600;font-size:.73rem;margin:8px 0 4px">${m.away}</div>
+            <div style="color:var(--red-bright);font-size:.7rem;margin-bottom:4px">${aData.strengthChange} · 伤停${aData.injuries.length}人 · 总影响${aData.totalImpact}/10</div>
+            ${renderTeamInjury(aData, m.away)}
+            <div style="font-size:.65rem;color:var(--gold-dim);margin-top:4px">🔥 核心：${aData.players.slice(0,3).map(p=>`${p.name}(${p.goals}球${p.assists}助)`).join(' ')}</div></div>`;
     }).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无数据</div>';
 }
 function renderScorers(league) {
@@ -5303,14 +5335,14 @@ function renderTeam(teamName) {
             <!-- 球员深度数据 -->
             <div class="section-title" style="padding:14px 0 8px"><span class="dot"></span> 核心球员</div>
             <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px">
-                ${[1,2,3].map(i=>`<div style="flex:1;min-width:100px;background:var(--card);border-radius:10px;padding:10px;text-align:center;font-size:.7rem">
-                    <div style="width:32px;height:32px;border-radius:50%;background:var(--gold);margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:#1A0A0A;font-weight:700;font-size:.7rem">#${7+i}</div>
-                    <div style="font-weight:600;color:var(--text)">${teamName}核心${i}</div>
-                    <div style="font-size:.62rem;color:var(--sub);margin-top:4px">⚽ ${(8+Math.random()*15).toFixed(0)}球</div>
-                    <div style="font-size:.62rem;color:var(--sub)">🎯 ${(2+Math.random()*8).toFixed(0)}助</div>
-                    <div style="font-size:.62rem;color:var(--gold)">📊 ${(12+Math.random()*20).toFixed(1)}%转化率</div>
+                ${getTeamPlayers(teamName).players.slice(0,5).map(p=>`<div style="flex:1;min-width:100px;background:var(--card);border-radius:10px;padding:10px;text-align:center;font-size:.7rem">
+                    <div style="width:32px;height:32px;border-radius:50%;background:var(--gold);margin:0 auto 4px;display:flex;align-items:center;justify-content:center;color:#1A0A0A;font-weight:700;font-size:.7rem">#${p.num}</div>
+                    <div style="font-weight:600;color:var(--text)">${p.name}</div><div style="font-size:.62rem;color:var(--sub)">${p.pos}</div>
+                    <div style="font-size:.62rem;color:var(--sub);margin-top:4px">⚽ ${p.goals}球 🎯 ${p.assists}助</div>
+                    <div style="font-size:.62rem;color:var(--gold)">📊 ${p.conversionRate}转化率</div>
                 </div>`).join('')}
             </div>
+            ${(function(){var pd=getTeamPlayers(teamName);if(!pd.injuries.length)return'';var items=pd.injuries.map(function(i){return'<div style=\"display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(92,48,48,.3);font-size:.73rem\"><span>'+i.severity.split(' ')[0]+' '+i.name+'</span><span style=\"color:var(--sub);font-size:.68rem\">'+i.pos+' · '+i.reason+'</span><span style=\"color:var(--gold)\">复出:'+i.returnDate+'</span></div>';}).join('');return'<div class=\"section-title\" style=\"padding:14px 0 8px\"><span class=\"dot\"></span> 🏥 伤停名单 ('+pd.injuries.length+'人)</div><div class=\"card\" style=\"background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px\">'+items+'<div style=\"color:var(--red-bright);font-size:.7rem;margin-top:4px\">📊 '+pd.strengthChange+'</div></div>';})()}
             <div class="section-title" style="padding:14px 0 8px"><span class="dot"></span> 常见对手 (H2H)</div>
             <div class="card" style="background:var(--card);border-radius:12px;padding:12px">
                 ${topOpponents.length ? topOpponents.map(([opp, s]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(92,48,48,.3);font-size:.78rem">
