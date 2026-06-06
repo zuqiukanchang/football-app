@@ -6014,6 +6014,7 @@ let notificationHistory = JSON.parse(localStorage.getItem('fbs-notifications') |
 let unreadCount = parseInt(localStorage.getItem('fbs-unread') || '0');
 function saveNotifications() { localStorage.setItem('fbs-notifications', JSON.stringify(notificationHistory.slice(0, 100))); localStorage.setItem('fbs-unread', unreadCount); }
 function generateNotifications() {
+    if (!canSendNotification()) return;
     if (!followedTeams.length) { notificationHistory = []; unreadCount = 0; saveNotifications(); return; }
     const newNotifs = [];
     const existingKeys = new Set(notificationHistory.map(n => n._key || ''));
@@ -6580,6 +6581,26 @@ function showPromoBanner() {
 function showSyncInfo() {
     showToast('💡 点击"备份数据"导出JSON → 新设备"恢复数据"导入，完成同步', 3500);
 }
+
+// ======================== 全局优化 ========================
+// 全局错误边界
+window.addEventListener('error', function(e) { if (e.target.tagName !== 'IMG') console.warn('[App] 全局错误:', e.message); });
+window.addEventListener('unhandledrejection', function(e) { console.warn('[App] Promise错误:', e.reason); showToast('⚠️ 操作异常，请重试', 2500); });
+// 网络状态监控
+let isOnline = navigator.onLine;
+window.addEventListener('online', () => { isOnline = true; showToast('🌐 网络已恢复', 1500); if (currentPage === 'home') renderHome(); });
+window.addEventListener('offline', () => { isOnline = false; showToast('📡 网络已断开，使用缓存数据', 3000); });
+// 推送频率控制
+let lastNotificationTime = 0;
+function canSendNotification() { const now = Date.now(); if (now - lastNotificationTime < 30000) return false; lastNotificationTime = now; return true; }
+// 操作流程简化：快捷手势
+let doubleTapTimer = null;
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#page-home') && !e.target.closest('button,.match-card,input,select')) {
+        if (doubleTapTimer) { clearTimeout(doubleTapTimer); doubleTapTimer = null; window.scrollTo({top:0,behavior:'smooth'}); }
+        else doubleTapTimer = setTimeout(() => doubleTapTimer = null, 300);
+    }
+});
 
 document.addEventListener('DOMContentLoaded',()=>{addPinStyles();addSecurityMeta();addConsoleProtection();initPWA();initTheme();initApp();startAutoRefresh();
     setTimeout(showOnboarding, 800);window.addEventListener('load',logPerf); // 免责弹窗之后再显示引导
