@@ -5382,7 +5382,15 @@ function showFeedbackForm() {
 
 // ======================== 会员模拟 ========================
 let isPremium = localStorage.getItem('fbs-premium') === 'true';
+let memberTier = localStorage.getItem('fbs-tier') || 'free'; // free/gold/diamond
 const VIP_CODES = ['VIP888', 'PREMIUM2026', 'AKAGI-VIP'];
+const DIAMOND_CODES = ['DIAMOND2026', 'AKAGI-DIA', 'SUPER-D'];
+const LIFETIME_CODES = ['LIFETIME-GOLD', 'LIFETIME-DIA'];
+// 定价表
+const PRICING = {
+    gold: { name: '👑 黄金会员', color: '#C9A84C', plans: { day: { price: 18, label: '天卡', tag: '⚡ 单日体验' }, month: { price: 68, label: '月卡', save: '立省466元/年' }, quarter: { price: 168, label: '季卡', save: '立省36元', tag: '🔥 大众热门' }, year: { price: 498, label: '年卡', save: '立省318元', tag: '⭐ 最划算' }, lifetime: { price: 2998, label: '终身', tag: '💎 永久' } } },
+    diamond: { name: '💎 钻石会员', color: '#4A90D9', plans: { day: { price: 58, label: '天卡', tag: '⚡ 单日深度' }, month: { price: 168, label: '月卡', save: '立省1428元/年' }, quarter: { price: 428, label: '季卡', save: '立省76元', tag: '🔥 专业首选' }, year: { price: 1198, label: '年卡', save: '立省818元', tag: '⭐ 终身性价比' }, lifetime: { price: 6998, label: '终身', tag: '🏆 限量', limit: '全球限量100000名' } } }
+};
 let freePredCount = parseInt(localStorage.getItem('fbs-free-count') || '0');
 let freePredDate = localStorage.getItem('fbs-free-date') || '';
 function checkFreeLimit() { const today = new Date().toDateString(); if (freePredDate !== today) { freePredCount = 0; freePredDate = today; } return freePredCount < 10; }
@@ -5554,34 +5562,43 @@ function showPremiumModal() {
     modal.querySelector('.modal-btn-cancel').style.display = '';
     modal.querySelector('.modal-btn-cancel').textContent = '取消';
     modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
-    modal.querySelector('.modal-title').textContent = isPremium ? '👑 至尊会员' : '💎 升级会员';
-    modal.querySelector('.modal-text').innerHTML = isPremium ? `
-        <div style="text-align:center;font-size:3rem;margin-bottom:8px">👑</div>
-        <p style="color:var(--gold)">你已是至尊会员</p>
-        <div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">
-        ✅ 三AI全量预测（稳基+睿财+智穹）<br>✅ 所有工具无限制（凯利/因子/串关）<br>✅ 实时赛事提醒推送<br>✅ 回测系统全量数据<br>✅ 数据导出备份<br>✅ 金龙专属会员标识</div>` : `
-        <div style="text-align:center;font-size:3rem;margin-bottom:8px">💎</div>
-        <p style="color:var(--gold);font-weight:700">升级至尊会员</p>
-        <div style="text-align:left;font-size:.75rem;line-height:1.8;margin:8px 0;color:var(--sub)">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🎯 三AI全量预测</span><span style="color:var(--gold)">✓</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🔧 全部工具</span><span style="color:var(--gold)">✓</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🔔 赛事提醒</span><span style="color:var(--gold)">✓</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0"><span>👑 会员标识</span><span style="color:var(--gold)">✓</span></div></div>
-        <p style="font-size:.7rem;color:var(--sub);margin:10px 0">方式一：输入VIP邀请码</p>
-        <input id="vipCodeInput" placeholder="输入邀请码 (如VIP888)" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
-        <p style="font-size:.7rem;color:var(--sub);margin:8px 0">方式二：微信/支付宝支付（即将上线）</p>
-        <div style="display:flex;gap:8px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.75rem" onclick="event.preventDefault();showToast('💳 支付功能开发中，请使用邀请码激活',2500)">💚 微信</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.75rem" onclick="event.preventDefault();showToast('💳 支付功能开发中，请使用邀请码激活',2500)">💙 支付宝</button></div>`;
-    modal.querySelector('.modal-btn-confirm').textContent = isPremium ? '退出会员' : '激活';
-    modal.querySelector('.modal-btn-confirm').onclick = () => {
-        if (isPremium) { isPremium = false; localStorage.removeItem('fbs-premium'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
-        else {
+    modal.querySelector('.modal-title').textContent = isPremium ? `当前：${memberTier==='diamond'?'💎 钻石会员':'👑 黄金会员'}` : '💎 选择会员方案';
+    if (isPremium) {
+        const t = memberTier === 'diamond' ? PRICING.diamond : PRICING.gold;
+        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子+冷门预测+每日3场稳胆<br>✅ 凯利实时监控+5串1推荐+全量回测+批量模拟<br>✅ 极速数据10秒更新+历史赔率+资金流向<br>✅ 1v1专属客服+分析师咨询+每周内参':'✅ AI3终审预测+基础因子<br>✅ 凯利基础版+3串1+30天回测<br>✅ 实时数据1分钟更新<br>✅ 6小时优先客服'}</div><button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
+        modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+        modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    } else {
+        const renderTier = (tier, data) => `
+            <div style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid ${data.color}40">
+                <div style="font-weight:700;color:${data.color};margin-bottom:4px">${data.name}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:.65rem">
+                    ${['day','month','quarter','year','lifetime'].map(k=>{const p=data.plans[k];return`<div onclick="activateMember('${tier}','${k}')" style="background:var(--bg);border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;border:1px solid var(--border);transition:all .15s" onmouseover="this.style.borderColor='${data.color}'" onmouseout="this.style.borderColor='var(--border)'">
+                        <div style="font-weight:700;color:var(--text)">¥${p.price}</div>
+                        <div style="font-size:.6rem;color:var(--sub)">${p.label}${p.tag?`<br><span style="color:${data.color}">${p.tag}</span>`:''}${p.save?`<br><span style="color:var(--green-bright)">${p.save}</span>`:''}${p.limit?`<br><span style="color:var(--red-bright);font-size:.55rem">${p.limit}</span>`:''}</div>
+                    </div>`;}).join('')}
+                </div>
+            </div>`;
+        modal.querySelector('.modal-text').innerHTML = `<div style="max-height:400px;overflow-y:auto">${renderTier('gold', PRICING.gold)}${renderTier('diamond', PRICING.diamond)}<div style="text-align:center;margin:10px 0;font-size:.7rem;color:var(--sub)">或输入邀请码激活</div><input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"><div style="display:flex;gap:4px;margin-top:4px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💚</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💙</button></div></div>`;
+        modal.querySelector('.modal-btn-confirm').textContent = '激活邀请码';
+        modal.querySelector('.modal-btn-confirm').onclick = () => {
             const code = document.getElementById('vipCodeInput')?.value?.trim()?.toUpperCase();
-            if (VIP_CODES.includes(code)) { isPremium = true; localStorage.setItem('fbs-premium', 'true'); closeLogoutModal(); showToast('👑 至尊会员已激活！'); renderProfile(); }
-            else { showToast('❌ 邀请码无效'); }
-        }
-    };
+            if (DIAMOND_CODES.includes(code) || LIFETIME_CODES.includes(code)) { isPremium = true; memberTier = 'diamond'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'diamond'); closeLogoutModal(); showToast('💎 钻石会员已激活！'); renderProfile(); }
+            else if (VIP_CODES.includes(code)) { isPremium = true; memberTier = 'gold'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'gold'); closeLogoutModal(); showToast('👑 黄金会员已激活！'); renderProfile(); }
+            else { showToast('❌ 邀请码无效，请点击上方方案选择或输入有效邀请码'); }
+        };
+    }
     modal.classList.add('show');
 }
+function activateMember(tier, plan) {
+    isPremium = true; memberTier = tier;
+    localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', tier);
+    const p = PRICING[tier].plans[plan];
+    closeLogoutModal();
+    showToast(`✅ ${p.label}已激活 · ${PRICING[tier].name}（需支付¥${p.price}，当前演示模式）`);
+    renderProfile();
+}
+function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
 
 // ======================== 数据同步提示 ========================
 function showSyncInfo() {
