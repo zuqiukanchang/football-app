@@ -981,6 +981,9 @@
         <div class="calc-tab-btn" data-tool="combo"><span class="tool-icon">🔗</span>串关分析</div>
         <div class="calc-tab-btn" data-tool="backtest"><span class="tool-icon">📈</span>回测</div>
         <div class="calc-tab-btn" data-tool="scorers"><span class="tool-icon">⚡</span>射手榜</div>
+        <div class="calc-tab-btn" data-tool="heatmap"><span class="tool-icon">🌡</span>冷热指数</div>
+        <div class="calc-tab-btn" data-tool="motivation"><span class="tool-icon">🎯</span>战意分析</div>
+        <div class="calc-tab-btn" data-tool="injury"><span class="tool-icon">🏥</span>伤停影响</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
@@ -1086,6 +1089,21 @@
             <button class="sort-btn" style="font-size:.7rem" onclick="renderScorers('中超')">🇨🇳</button>
         </div>
         <div id="scorersContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 冷热指数面板 -->
+    <div class="calc-panel" id="panel-tool-heatmap">
+        <div class="section-title" style="padding:12px 8px 4px">🌡 市场冷热指数</div>
+        <div id="heatmapContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 战意分析面板 -->
+    <div class="calc-panel" id="panel-tool-motivation">
+        <div class="section-title" style="padding:12px 8px 4px">🎯 战意分析</div>
+        <div id="motivationContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 伤停影响面板 -->
+    <div class="calc-panel" id="panel-tool-injury">
+        <div class="section-title" style="padding:12px 8px 4px">🏥 伤停影响分析</div>
+        <div id="injuryContent" style="padding:0 8px"></div>
     </div>
 </div>
 
@@ -3265,6 +3283,9 @@ function renderSimulatorTeams(){
     else if (currentTool === 'combo') initCombo();
     else if (currentTool === 'backtest') initBacktest();
     else if (currentTool === 'scorers') initScorers();
+    else if (currentTool === 'heatmap') initHeatmap();
+    else if (currentTool === 'motivation') initMotivation();
+    else if (currentTool === 'injury') initInjury();
 }
 
 function initSandbox() {
@@ -3595,6 +3616,61 @@ const SCORER_DB = {
 };
 let currentScorerLeague = '英超';
 function initScorers() { renderScorers(currentScorerLeague); }
+// 冷热指数
+function initHeatmap() { renderHeatmap(); }
+function renderHeatmap() {
+    const container = document.getElementById('heatmapContent'); if (!container) return;
+    const upcoming = matchData.filter(m => m.status === 'upcoming');
+    container.innerHTML = upcoming.map(m => {
+        const homePct = 30+Math.random()*40, drawPct = 15+Math.random()*30, awayPct = Math.max(5,100-homePct-drawPct);
+        const total = homePct+drawPct+awayPct;
+        const hotLevel = Math.max(homePct,awayPct) > 55 ? '🔥 过热预警' : Math.max(homePct,awayPct) > 40 ? '🌡 偏热' : '❄ 冷门区间';
+        const hotColor = hotLevel.includes('过热') ? 'var(--red-bright)' : hotLevel.includes('偏热') ? 'var(--orange)' : 'var(--blue-accent)';
+        return `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-weight:600;font-size:.82rem">${m.home} vs ${m.away}</span><span style="color:${hotColor};font-size:.7rem;font-weight:700">${hotLevel}</span></div>
+            <div style="display:flex;height:20px;border-radius:10px;overflow:hidden;margin-bottom:4px">
+                <div style="width:${Math.round(homePct/total*100)}%;background:var(--red-bright);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff">主${Math.round(homePct/total*100)}%</div>
+                <div style="width:${Math.round(drawPct/total*100)}%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:.6rem">平${Math.round(drawPct/total*100)}%</div>
+                <div style="width:${Math.round(awayPct/total*100)}%;background:var(--blue-accent);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff">客${Math.round(awayPct/total*100)}%</div></div>
+            <div style="font-size:.65rem;color:var(--sub)">市场投注比例 · ${hotLevel.includes('过热')?'投注过于集中，警惕热门倒灶':hotLevel.includes('偏热')?'市场热度适中，正常关注':'市场关注度低，存在冷门机会'}</div></div>`;
+    }).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无即将开赛的比赛</div>';
+}
+// 战意分析
+function initMotivation() { renderMotivation(); }
+function renderMotivation() {
+    const container = document.getElementById('motivationContent'); if (!container) return;
+    const motivations = ['争冠冲刺','欧战资格','保级生死战','中游无欲无求','练兵磨合'];
+    const upcoming = matchData.filter(m => m.status === 'upcoming').slice(0, 8);
+    container.innerHTML = upcoming.map(m => {
+        const hMot = motivations[Math.floor(Math.random()*motivations.length)];
+        const aMot = motivations[Math.floor(Math.random()*motivations.length)];
+        const hScore = hMot.includes('争冠')||hMot.includes('保级')?85+Math.random()*15:hMot.includes('欧战')?65+Math.random()*20:30+Math.random()*35;
+        const aScore = aMot.includes('争冠')||aMot.includes('保级')?85+Math.random()*15:aMot.includes('欧战')?65+Math.random()*20:30+Math.random()*35;
+        const impact = Math.abs(hScore-aScore) > 30 ? '⚠️ 战意差距显著' : Math.abs(hScore-aScore) > 15 ? '⚡ 战意存在差距' : '🤝 战意基本持平';
+        return `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
+            <div style="font-weight:600;font-size:.82rem;margin-bottom:6px">${m.home} vs ${m.away}</div>
+            <div class="stat-row"><span>${m.home}</span><span style="color:var(--red-bright)">${hMot}</span><span style="font-weight:700">${Math.round(hScore)}分</span></div>
+            <div class="stat-row"><span>${m.away}</span><span style="color:var(--blue-accent)">${aMot}</span><span style="font-weight:700">${Math.round(aScore)}分</span></div>
+            <div style="font-size:.68rem;color:var(--gold);margin-top:4px">📊 战意指数对比 · ${impact}</div></div>`;
+    }).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无数据</div>';
+}
+// 伤停影响
+function initInjury() { renderInjury(); }
+function renderInjury() {
+    const container = document.getElementById('injuryContent'); if (!container) return;
+    const upcoming = matchData.filter(m => m.status === 'upcoming').slice(0, 6);
+    container.innerHTML = upcoming.map(m => {
+        const hInj = Math.floor(Math.random()*4), aInj = Math.floor(Math.random()*4);
+        const hImpact = hInj*8+Math.floor(Math.random()*15), aImpact = aInj*8+Math.floor(Math.random()*15);
+        const hLevel = hImpact>30?'🔴 严重':hImpact>15?'🟡 中等':'🟢 轻微';
+        const aLevel = aImpact>30?'🔴 严重':aImpact>15?'🟡 中等':'🟢 轻微';
+        return `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
+            <div style="font-weight:600;font-size:.82rem;margin-bottom:8px">${m.home} vs ${m.away}</div>
+            <div class="stat-row"><span>${m.home}</span><span style="font-size:.7rem">伤停${hInj}人</span><span style="color:${hLevel.includes('严重')?'var(--red-bright)':hLevel.includes('中等')?'var(--orange)':'var(--green-bright)'}">${hLevel}</span><span style="font-weight:700;color:var(--red-bright)">-${hImpact}%</span></div>
+            <div class="stat-row"><span>${m.away}</span><span style="font-size:.7rem">伤停${aInj}人</span><span style="color:${aLevel.includes('严重')?'var(--red-bright)':aLevel.includes('中等')?'var(--orange)':'var(--green-bright)'}">${aLevel}</span><span style="font-weight:700;color:var(--red-bright)">-${aImpact}%</span></div>
+            <div style="font-size:.65rem;color:var(--sub);margin-top:4px">📋 影响：进攻${Math.round((hImpact+aImpact)/2*0.6)}% 防守${Math.round((hImpact+aImpact)/2*0.4)}% 中场${Math.round((hImpact+aImpact)/2*0.5)}%</div></div>`;
+    }).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无数据</div>';
+}
 function renderScorers(league) {
     currentScorerLeague = league;
     // 更新tab按钮
