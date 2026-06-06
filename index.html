@@ -2249,9 +2249,9 @@ const DataService = {
     },
 
     _applyData(data) {
-        if (data.matches && data.matches.length) {
-            matchData.length = 0; matchData.push(...data.matches);
-        }
+        // 保留原始数据作为最低保障
+        if (!data.matches || !data.matches.length) return;
+        matchData.length = 0; matchData.push(...data.matches);
         if (data.teams) {
             Object.entries(data.teams).forEach(([name, info]) => {
                 if (!TEAM_DB[name]) TEAM_DB[name] = info;
@@ -6033,8 +6033,10 @@ async function initApp(){
     $('#liveMatches').innerHTML=renderSkeleton(2);$('#upcomingMatches').innerHTML=renderSkeleton(3);
 
     // P0: 初始化数据层（缓存→CDN→Mock降级）
-    try { await DataService.init(); }
-    catch (e) { console.error('[initApp] DataService failed:', e); }
+    // 超时保护：3秒内未加载则用现有数据渲染
+    const dataTimeout = setTimeout(() => { if (!matchData.length) { const mock = MockDataGenerator.generateAll(); DynamicPredictEngine.computeAll(mock.matches); DataService._applyData(mock); renderLeagueChips(); renderDateStrip(); renderHome(); } }, 3000);
+    try { await DataService.init(); clearTimeout(dataTimeout); }
+    catch (e) { clearTimeout(dataTimeout); console.error('[initApp] DataService failed:', e); }
 
     // 动态生成联赛筛选Chip + 日历
     renderLeagueChips();
