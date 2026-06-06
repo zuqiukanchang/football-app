@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://zuqiukanchang.github.io/football-app/sitemap.xml
