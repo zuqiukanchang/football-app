@@ -2410,6 +2410,7 @@ function showAccountBindings() {
             <span>🍎 Apple</span><span style="color:${b.apple?'var(--green-bright)':'var(--sub)'}">${b.apple?'已绑定':'未绑定'}</span>
             <span onclick="${b.apple?'unbindAccount':'socialQuickLogin'}('${b.apple?'apple':'apple'}')" style="color:${b.apple?'var(--red-bright)':'var(--gold)'};cursor:pointer;font-size:.7rem">${b.apple?'解绑':'绑定'}</span>
         </div>
+        ${isIOS()?`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>🍎 Apple</span>...</div>`:''}
         <p style="font-size:.68rem;color:var(--sub);margin-top:8px">⚠️ 至少保留一种登录方式</p></div>`;
     modal.querySelector('.modal-btn-confirm').textContent = '关闭';
     modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
@@ -3740,8 +3741,8 @@ function renderProfile(){
             <canvas id="profitChart" width="360" height="140" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:12px"></canvas>
             <!-- 用户卡片 -->
             <div class="profile-card">
-                <div class="profile-avatar">⚽</div>
-                <div class="profile-phone">${user.phone}</div>
+                <div class="profile-avatar" style="background:linear-gradient(145deg,${isPremium?'#C9A84C':'var(--red)'},${isPremium?'#8B6914':'#8B0000'},${isPremium?'#C9A84C':'var(--red)'})">${isPremium?'👑':'⚽'}</div>
+                <div class="profile-phone">${user.phone}<span style="font-size:.65rem;color:var(--sub);margin-left:6px;cursor:pointer" onclick="editNickname()">✏️</span></div>
                 <div class="level-badge">🏅 ${user.level}</div>
                 ${isPremium?'<div style="display:inline-block;margin-left:6px;padding:4px 10px;border-radius:10px;font-size:.7rem;background:linear-gradient(135deg,#C9A84C,#8B6914);color:#1A0A0A;font-weight:700">👑 会员</div>':''}
                 ${isPremium ? `<div class="expire-bar"><div class="expire-fill" style="width:${expiryPct}%"></div></div><div class="expire-text">剩余 ${expiryDays} 天 · ${expiryDateStr} 到期</div>` : ''}
@@ -3784,6 +3785,7 @@ function renderProfile(){
                 ${isAdmin()?`<div class="menu-item" onclick="navigateTo('admin')"><div class="menu-left"><span class="menu-icon">⚙️</span><span class="menu-text">AI系统设置</span></div><span style="font-size:.65rem;color:var(--gold)">管理员</span></div>`:''}
             </div>
             <div class="menu-section">
+                <div class="menu-item logout-item" onclick="requestAccountDeletion()"><div class="menu-left"><span class="menu-icon">⚠️</span><span class="menu-text">账号注销</span></div><span style="font-size:.65rem;color:var(--red-bright)">7天冷静期</span></div>
                 <div class="menu-item logout-item" onclick="showLogoutModal()"><div class="menu-left"><span class="menu-icon">🚪</span><span class="menu-text">退出登录</span></div><span class="menu-arrow">›</span></div>
             </div>
         </div>`;
@@ -4134,11 +4136,67 @@ function showLogoutModal() {
 }
 function closeLogoutModal() { const m = $('#logoutModal'); if (m) m.classList.remove('show'); }
 function confirmLogout() {
+    if (checkAccountDeletion()) { showToast('⚠️ 账号注销中，无法登录。7天冷静期后可恢复。'); return; }
     localStorage.removeItem('fbs-user-v3');
     closeLogoutModal();
     showToast('👋 已退出登录');
     setTimeout(() => renderProfile(), 300);
 }
+// 昵称编辑
+function editNickname() { const name = prompt('输入昵称（2-12字）：', loadUser()?.phone || ''); if (name && name.length >= 2 && name.length <= 12) { const u = loadUser(); if (u) { u.nickname = name; localStorage.setItem('fbs-user-v3', JSON.stringify(u)); renderProfile(); showToast('✅ 昵称已更新'); } } }
+// 账号注销（7天冷静期）
+function requestAccountDeletion() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = '';
+    modal.querySelector('.modal-btn-cancel').textContent = '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
+    modal.querySelector('.modal-title').textContent = '⚠️ 账号注销';
+    modal.querySelector('.modal-text').innerHTML = `
+        <div style="text-align:left;font-size:.78rem;line-height:1.8">
+        <p style="color:var(--red-bright);font-weight:700">注销后将删除以下数据：</p>
+        <p style="font-size:.73rem;color:var(--sub)">📝 预测记录 · 💰 投注历史 · ⭐ 收藏比赛 · 🔔 关注球队<br>📊 个人设置 · 🤖 AI反馈 · 💬 消息记录</p>
+        <p style="color:var(--gold);margin-top:8px">📋 注销流程：</p>
+        <p style="font-size:.73rem;color:var(--sub)">1️⃣ 提交申请 → 2️⃣ 7天冷静期 → 3️⃣ 永久删除<br>冷静期内重新登录可撤销注销</p>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.75rem;cursor:pointer">
+            <input type="checkbox" id="chkDelete"> 我已知晓后果，确认注销
+        </label></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '确认注销';
+    modal.querySelector('.modal-btn-confirm').onclick = () => {
+        if (!document.getElementById('chkDelete')?.checked) { showToast('请勾选确认'); return; }
+        if (!verifyAdminPin()) return;
+        localStorage.setItem('fbs-delete-request', Date.now().toString());
+        localStorage.setItem('fbs-delete-user', localStorage.getItem('fbs-user-v3') || '');
+        localStorage.removeItem('fbs-user-v3');
+        closeLogoutModal();
+        showToast('📋 注销已提交，7天冷静期后永久删除。期间登录可撤销。', 4000);
+        addAuditLog('申请账号注销（7天冷静期）');
+        setTimeout(() => renderProfile(), 500);
+    };
+    modal.classList.add('show');
+}
+function checkAccountDeletion() {
+    const req = localStorage.getItem('fbs-delete-request');
+    if (!req) return false;
+    const elapsed = Date.now() - parseInt(req);
+    if (elapsed > 7 * 86400000) {
+        // 永久删除
+        localStorage.clear();
+        ['fbs-delete-request', 'fbs-delete-user'].forEach(k => localStorage.removeItem(k));
+        showToast('账号已永久删除');
+        return false;
+    }
+    // 冷静期内
+    if (elapsed < 7 * 86400000 && loadUser()) {
+        // 用户在冷静期内登录了，撤销
+        localStorage.removeItem('fbs-delete-request');
+        localStorage.removeItem('fbs-delete-user');
+        showToast('✅ 账号注销已撤销，欢迎回来！');
+        return false;
+    }
+    return true; // 依然在冷静期且未登录
+}
+// iOS检测
+function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent); }
 function renderLogin() {
     const rememberedPhone = localStorage.getItem('fbs-remembered-phone') || '';
     const guestData = localStorage.getItem('fbs-guest-data');
