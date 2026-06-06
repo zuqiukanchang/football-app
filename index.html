@@ -3767,6 +3767,16 @@ function askAI() {
     a.innerHTML = `<div style="color:var(--gold);font-weight:700;margin-bottom:4px">🤖 AI：</div>${best}`;
 }
 // 钻石API
+// 支付测试
+function showPaymentTest(platform) {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-title').textContent = platform === 'wechat' ? '💚 微信支付' : '💙 支付宝';
+    modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><p style="color:var(--gold);font-weight:700">${platform==='wechat'?'微信扫码支付':'支付宝扫码支付'}</p><div style="width:160px;height:160px;background:var(--bg);margin:10px auto;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:4rem">${platform==='wechat'?'💚':'💙'}</div><p style="font-size:.7rem;color:var(--sub)">演示模式：点击确认模拟支付成功</p></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '确认支付';
+    modal.querySelector('.modal-btn-confirm').onclick = () => { closeLogoutModal(); showToast('✅ 支付成功！会员已激活'); };
+    modal.classList.add('show');
+}
 function showDiamondAPI() {
     if (memberTier !== 'diamond') { showToast('👑 钻石终身会员专属'); return; }
     const modal = document.getElementById('logoutModal'); if (!modal) return;
@@ -4826,8 +4836,8 @@ function showAISettings() {
     modal.querySelector('.modal-title').textContent = '🤖 AI 接口设置';
     modal.querySelector('.modal-text').innerHTML = `
         <div style="text-align:left;font-size:.82rem;line-height:1.7">
-        <p>接入 <strong style="color:var(--gold)">Claude API</strong> 后，前瞻分析将由AI实时生成，质量远超模板。</p>
-        <p style="font-size:.73rem;color:var(--sub);margin:8px 0">获取API Key：<a href="https://console.anthropic.com" target="_blank" style="color:var(--blue-accent)">console.anthropic.com</a></p>
+        <p>接入 <strong style="color:var(--gold)">Claude API</strong> 实时生成深度分析</p>
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" style="display:inline-block;width:100%;padding:10px;background:var(--gold);color:#1A0A0A;text-align:center;border-radius:8px;font-weight:700;text-decoration:none;margin:8px 0;font-size:.78rem">🔑 一键获取API Key →</a>
         <input type="password" id="aiKeyInput" placeholder="输入 API Key (sk-ant-...)" value="${currentKey}" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.8rem;margin:8px 0;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
         ${aiApiEnabled?'<p style="color:var(--green-bright);font-size:.75rem">✅ 当前已启用AI接口</p>':''}
         </div>`;
@@ -5643,6 +5653,8 @@ async function initApp(){
     // 动态生成联赛筛选Chip + 日历
     renderLeagueChips();
     renderDateStrip();
+    // 首次加载尝试拉取真实数据
+    if (!localStorage.getItem('fbs-data-attempted')) { localStorage.setItem('fbs-data-attempted','1'); DataService.init({force:true}).then(()=>{renderHome();renderLeagueChips();}); }
     // P3: 消息通知生成
     generateNotifications();
     showPromoBanner();
