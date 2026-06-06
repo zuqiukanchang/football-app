@@ -761,6 +761,16 @@
         @keyframes pageSlideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         /* 搜索框清除按钮 */
         #searchInput::-webkit-search-cancel-button{filter:invert(.6);cursor:pointer}
+        /* 防重复点击 */
+        .btn-cooling{pointer-events:none;opacity:.6;transition:opacity .3s}
+        /* 错误重试提示 */
+        .retry-banner{text-align:center;padding:18px;margin:8px 16px;background:var(--card);border-radius:14px;border:1px dashed var(--gold);cursor:pointer;transition:all .2s}
+        .retry-banner:active{background:var(--card-hover)}
+        /* 表单验证提示 */
+        .input-error{border-color:var(--red-bright)!important;box-shadow:0 0 8px rgba(255,68,68,.2)!important}
+        .input-hint{font-size:.68rem;margin-top:2px;display:none}
+        .input-hint.show{display:block}
+        .input-hint.error{color:var(--red-bright)}.input-hint.ok{color:var(--green-bright)}
         /* ====== 移动端触控优化 ====== */
         button,.league-chip,.sort-btn,.nav-item,.match-card,.add-bet-btn,.detail-tab,.predict-subtab,.calc-tab-btn,.plan-tab-btn,.combo-opt-label{min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         .league-chip,.sort-btn,.add-bet-btn{padding:8px 14px;font-size:.73rem}
@@ -3697,10 +3707,11 @@ function renderLogin() {
                 <div id="login-sms-panel">
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <span style="padding:0 12px;color:var(--sub);border-right:1px solid var(--border);font-size:.85rem">+86</span>
-                        <input type="tel" id="loginPhone" placeholder="手机号" maxlength="11" value="${rememberedPhone}" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="tel" id="loginPhone" placeholder="手机号" maxlength="11" value="${rememberedPhone}" oninput="validatePhone()" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                     </div>
+                    <div id="phoneHint" class="input-hint" style="padding:0 12px"></div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
-                        <input type="text" id="loginCode" placeholder="验证码" maxlength="6" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="text" id="loginCode" placeholder="验证码" maxlength="6" oninput="validateCode()" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                         <button id="loginCodeBtn" onclick="sendLoginCode()" style="padding:0 14px;height:46px;background:var(--red);border:none;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;border-radius:0 10px 10px 0">获取验证码</button>
                     </div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
@@ -3765,6 +3776,19 @@ function sendLoginCode() {
     showToast('📱 验证码：1234（演示）');
 }
 
+function validatePhone() {
+    const inp = document.getElementById('loginPhone'); const hint = document.getElementById('phoneHint');
+    if (!inp || !hint) return;
+    const v = inp.value.trim(); const parent = inp.parentElement;
+    if (!v) { hint.className = 'input-hint'; parent.classList.remove('input-error'); return; }
+    if (!/^1[3-9]\d{9}$/.test(v)) { hint.className = 'input-hint error show'; hint.textContent = '请输入正确的11位手机号'; parent.classList.add('input-error'); }
+    else { hint.className = 'input-hint ok show'; hint.textContent = '✓ 格式正确'; parent.classList.remove('input-error'); }
+}
+function validateCode() {
+    const inp = document.getElementById('loginCode'); if (!inp) return;
+    const v = inp.value.trim(); const parent = inp.parentElement;
+    parent.classList.toggle('input-error', v.length > 0 && v.length < 4);
+}
 function toggleLoginPwd() {
     const inp = $('#loginPassword'), tog = $('#loginPwdToggle');
     if (!inp || !tog) return;
@@ -4782,7 +4806,27 @@ function renderMessages() {
     markAllRead();
 }
 
-document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();});
+// ======================== 细节体验优化 ========================
+// 1. 全局防重复点击
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('button,.league-chip,.sort-btn,.nav-item,.match-card,.detail-tab,.predict-subtab,.calc-tab-btn,.plan-tab-btn');
+    if (!btn || btn.classList.contains('btn-cooling')) return;
+    btn.classList.add('btn-cooling');
+    setTimeout(() => btn.classList.remove('btn-cooling'), 1000);
+}, true);
+// 2. 首页自动刷新（5分钟）
+let autoRefreshTimer = null;
+function startAutoRefresh() { clearInterval(autoRefreshTimer); autoRefreshTimer = setInterval(() => { if (currentPage === 'home') { updateLiveMatch(); updateCountdowns(); } }, 300000); }
+// 3. 网络错误重试
+window.addEventListener('error', function(e) {
+    if (e.target && e.target.tagName === 'IMG') return;
+    const liveEl = document.getElementById('liveMatches');
+    if (liveEl && !liveEl.innerHTML.trim()) {
+        liveEl.innerHTML = '<div class="retry-banner" onclick="location.reload()"><div style="font-size:1.5rem;margin-bottom:6px">📡</div><div style="color:var(--gold);font-weight:600;margin-bottom:4px">网络有点慢</div><div style="font-size:.75rem;color:var(--sub)">点击重试</div></div>';
+    }
+}, true);
+
+document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();startAutoRefresh();});
 </script>
 </body>
 </html>
