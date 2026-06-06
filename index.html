@@ -725,16 +725,38 @@
         html.light .bottom-nav{background:var(--bg)}
         html.light .match-card.live::before{background:var(--red-bright)}
         html.light .score-live{text-shadow:0 0 10px rgba(231,76,60,.4)}
-        /* ====== 细节优化 ====== */
+        /* ====== 微交互 & 动画系统 ====== */
+        /* 按钮点击回弹 */
+        button:active,.league-chip:active,.nav-item:active,.match-card:active{animation:btnBounce .25s cubic-bezier(.22,.61,.36,1)}
+        @keyframes btnBounce{0%{transform:scale(1)}40%{transform:scale(.92)}70%{transform:scale(1.04)}100%{transform:scale(1)}}
+        /* 金色高光扫过 */
+        button,.league-chip,.add-bet-btn,.refresh-btn,.sort-btn,.nav-item,.sim-btn{position:relative;overflow:hidden}
+        button::after,.league-chip::after,.add-bet-btn::after,.sim-btn::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(201,168,76,.25),transparent);transform:skewX(-25deg);pointer-events:none}
+        button:active::after,.league-chip:active::after,.add-bet-btn:active::after,.sim-btn:active::after{animation:goldSweep .5s ease}
+        @keyframes goldSweep{0%{left:-100%}100%{left:200%}}
         /* 倒计时脉冲 */
         .countdown-badge.pulse{animation:cdPulse .8s ease-in-out infinite}
         @keyframes cdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.08)}}
         /* 比分数字弹跳 */
         .score-pop{animation:scorePop .4s cubic-bezier(.22,.61,.36,1)}
         @keyframes scorePop{0%{transform:scale(1)}30%{transform:scale(1.4);color:#FFD700}100%{transform:scale(1)}}
+        /* 数字滚动 */
+        .num-roll{animation:numRoll .5s cubic-bezier(.22,.61,.36,1);display:inline-block}
+        @keyframes numRoll{0%{transform:translateY(-100%);opacity:0}60%{transform:translateY(5%)}100%{transform:translateY(0);opacity:1}}
+        /* 金色闪光强调 */
+        .gold-flash{animation:goldFlash .6s ease-out}
+        @keyframes goldFlash{0%{box-shadow:0 0 0 0 rgba(201,168,76,.8),inset 0 0 30px rgba(201,168,76,.3)}100%{box-shadow:0 0 60px rgba(201,168,76,0),inset 0 0 0 rgba(201,168,76,0)}}
+        /* 金龙旋转加载 */
+        .dragon-spinner{display:inline-block;animation:dragonSpin 1s linear infinite}
+        @keyframes dragonSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        /* 骨架屏金龙扫光 */
+        .skeleton-card::after{background:linear-gradient(90deg,transparent 0%,rgba(201,168,76,.06) 30%,rgba(201,168,76,.12) 50%,rgba(201,168,76,.06) 70%,transparent 100%)}
         /* Tab面板淡入 */
-        .tab-panel.active{animation:tabFadeIn .2s ease}
+        .tab-panel.active{animation:tabFadeIn .25s ease}
         @keyframes tabFadeIn{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+        /* 页面转场：右滑入 */
+        .page.active{animation:pageSlideIn .3s cubic-bezier(.22,.61,.36,1)}
+        @keyframes pageSlideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         /* 搜索框清除按钮 */
         #searchInput::-webkit-search-cancel-button{filter:invert(.6);cursor:pointer}
     </style>
@@ -1996,12 +2018,19 @@ function playSound(type) { if (!soundEnabled) return; try { const ac = new (wind
 // P2: 增强事件通知
 function pushEventNotify(eventType, homeTeam, awayTeam, homeGoals, awayGoals, player) {
     let msg = '', duration = 2000, cls = '';
-    if (eventType === 'goal') { msg = `⚽ GOAL! ${homeTeam} ${homeGoals}:${awayGoals} ${awayTeam}`; duration = 3500; cls = 'goal-toast'; playSound('goal'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }
+    if (eventType === 'goal') { msg = `⚽ GOAL! ${homeTeam} ${homeGoals}:${awayGoals} ${awayTeam}`; duration = 3500; cls = 'goal-toast'; playSound('goal'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); triggerGoldFlash(); }
     else if (eventType === 'yellow') { msg = `🟨 黄牌 · ${player}`; duration = 2000; cls = 'card-toast'; playSound('card'); }
     else if (eventType === 'red') { msg = `🟥 红牌 · ${player}`; duration = 2800; cls = 'card-toast'; playSound('card'); }
     else if (eventType === 'sub') { msg = `🔄 换人 · ${player}`; duration = 1800; cls = 'sub-toast'; }
     else { msg = `📌 ${player}`; duration = 1800; }
     showToast(msg, duration, cls);
+}
+// 金色闪光
+function triggerGoldFlash() {
+    const toast = document.querySelector('.toast-item.goal-toast');
+    if (toast) { toast.classList.add('gold-flash'); setTimeout(() => toast.classList.remove('gold-flash'), 600); }
+    const header = document.querySelector('.sticky-nav');
+    if (header) { header.classList.add('gold-flash'); setTimeout(() => header.classList.remove('gold-flash'), 600); }
 }
 // 统一定时器管理
 const timers = { home: [], detail: [], login: [], all: [] };
@@ -2159,7 +2188,7 @@ function startHomeTimers(){clearAllTimers();liveTimer=regTimer('home',setInterva
 function startDetailTimer(){clearTimers('detail');detailUpdateTimer=regTimer('detail',setInterval(updateDetailLive,10000))}
 
 // ======================== 首页渲染 ========================
-function renderSkeleton(n=2){let h='';for(let i=0;i<n;i++)h+=`<div class="skeleton-card"><div class="skeleton-line short" style="width:35%"></div><div class="skeleton-teams"><div class="skeleton-crest"></div><div class="skeleton-line" style="width:18%;margin:0"></div><div class="skeleton-crest"></div></div><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div>`;return h}
+function renderSkeleton(n=2){let h=`<div style="text-align:center;padding:20px"><svg width="40" height="40" viewBox="0 0 100 100" class="dragon-spinner"><defs><radialGradient id="dsg" cx="50%" cy="40%"><stop offset="0%" stop-color="#E8C84C"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#8B6914"/></radialGradient></defs><circle cx="50" cy="50" r="44" fill="url(#dsg)" stroke="#6B4513" stroke-width="3"/><text x="50" y="56" text-anchor="middle" font-size="20" font-weight="bold" fill="#4A2020">龙</text></svg></div>`;for(let i=0;i<n;i++)h+=`<div class="skeleton-card"><div class="skeleton-line short" style="width:35%"></div><div class="skeleton-teams"><div class="skeleton-crest"></div><div class="skeleton-line" style="width:18%;margin:0"></div><div class="skeleton-crest"></div></div><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div>`;return h}
 
 function renderMatchCard(m){
     const isLive=m.status==='live',isFinished=m.status==='finished';
@@ -2266,6 +2295,12 @@ function renderDetail(matchId){
     renderEvents(m);renderLineups(m);renderPredictPanel(m);renderStats(m);renderH2H(m);renderStandings(m);renderPreview(m);renderShare(m);
     // 更新底部操作栏
     updateDetailBottomBar(m);
+    // AI高信心金色闪光
+    if (m.aiPredict && m.aiPredict.stars >= 4) {
+        setTimeout(() => {
+            const dsb = $('#detailScoreBig'); if (dsb) { dsb.classList.add('gold-flash'); setTimeout(() => dsb.classList.remove('gold-flash'), 600); }
+        }, 400);
+    }
     // 更新时间戳
     $('#updateTimestamp').textContent=`数据更新于 ${Math.floor(Math.random()*20+3)}秒前`;
     // P1: 自动记录预测历史
