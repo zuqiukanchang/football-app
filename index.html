@@ -6368,7 +6368,14 @@ function logPerf() {
     if (!window.performance || !performance.timing) return;
     const t = performance.timing;
     const loadTime = t.loadEventEnd - t.navigationStart;
-    if (loadTime > 0) console.log('[Perf] 页面加载: ' + loadTime + 'ms');
+    if (loadTime > 0) console.log('[Perf] 页面加载: ' + loadTime + 'ms (目标<2000ms ' + (loadTime < 2000 ? '✅' : '⚠️') + ')');
+}
+// 内存泄漏防护：页面切换时清理所有定时器
+function cleanupAllTimers() {
+    clearInterval(autoRefreshTimer);
+    clearInterval(kellyRefreshTimer);
+    stopAllTimers();
+    clearTimeout(pinTimeout);
 }
 function showInstallButton() { const btn = document.getElementById('installBtn'); if (btn && !pwaInstalled) btn.style.display = ''; }
 function hideInstallButton() { const btn = document.getElementById('installBtn'); if (btn) btn.style.display = 'none'; }
