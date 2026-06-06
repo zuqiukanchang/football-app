@@ -2288,7 +2288,10 @@ function renderLineups(m){
             ${subs.map(p=>`<div class="lineup-player sub-player"><span class="player-num">${p.num}</span><span class="player-name">${p.name}</span><span class="player-pos">${posMap[p.pos]||p.pos}</span>${p.tag?`<span class="player-tag sub-tag">↑</span>`:''}</div>`).join('')}
         </div>`;
     };
-    panel.innerHTML=`<div class="lineup-grid">${renderSide(m.lineup.home,m.home,true)}${renderSide(m.lineup.away,m.away,false)}</div>`;
+    panel.innerHTML=`<div class="lineup-grid">${renderSide(m.lineup.home,m.home,true)}${renderSide(m.lineup.away,m.away,false)}</div>
+    <div style="margin-top:10px;font-size:.78rem;color:var(--gold);font-weight:700">🏟 阵型站位</div>
+    <canvas id="pitchCanvas" width="360" height="280" style="width:100%;border-radius:12px;background:var(--card)"></canvas>`;
+    setTimeout(() => drawPitch(m), 100);
 }
 
 function renderPredictPanel(m){
@@ -3351,6 +3354,7 @@ function renderProfile(){
                 <div><div style="font-size:.7rem;color:var(--sub)">虚拟余额</div><div style="font-size:1.4rem;font-weight:800;color:var(--gold)">¥${userBalance.toFixed(0)}</div></div>
                 <div style="text-align:right"><div style="font-size:.7rem;color:var(--sub)">投注盈亏</div><div style="font-size:1rem;font-weight:700;color:${totalProfit>=0?'var(--green-bright)':'var(--red-bright)'}">${totalProfit>=0?'+':''}¥${totalProfit.toFixed(0)}</div></div>
             </div>
+            <canvas id="profitChart" width="360" height="140" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:12px"></canvas>
             <!-- 用户卡片 -->
             <div class="profile-card">
                 <div class="profile-avatar">⚽</div>
@@ -3381,7 +3385,7 @@ function renderProfile(){
             </div>
             <div class="menu-section">
                 <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
-                <div class="menu-item" onclick="toggleTheme()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
                 <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
@@ -3415,6 +3419,7 @@ function renderProfile(){
             </div>
         </div>`;
     }
+    setTimeout(() => drawProfitChart(), 150);
 }
 
 function showFavoritesList() {
@@ -3849,6 +3854,110 @@ function drawTeamRadar(teamName, stats) {
         ctx.fillText(values[i], nx, ny);
     }
 }
+// 足球场阵型图
+function drawPitch(m) {
+    const canvas = document.getElementById('pitchCanvas'); if (!canvas || !m.lineup) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 280;
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#1A2A1A' : '#E8F5E9'; ctx.fillRect(0, 0, w, h);
+    // 球场线
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.2)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(10, 10, w - 20, h - 20); // 外框
+    ctx.beginPath(); ctx.moveTo(w / 2, 10); ctx.lineTo(w / 2, h - 10); ctx.stroke(); // 中线
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 40, 0, Math.PI * 2); ctx.stroke(); // 中圈
+    // 禁区
+    ctx.strokeRect(10, h / 2 - 55, 55, 110); ctx.strokeRect(w - 65, h / 2 - 55, 55, 110);
+    // 球员位置（主队左半场，客队右半场）
+    const homePositions = [{ x: 65, y: 140 }, { x: 65, y: 30 }, { x: 65, y: 250 }, { x: 30, y: 90 }, { x: 30, y: 190 }, { x: 120, y: 110 }, { x: 120, y: 170 }, { x: 90, y: 60 }, { x: 90, y: 220 }, { x: 65, y: 140 }, { x: 65, y: 140 }];
+    const awayPositions = [{ x: w - 65, y: 140 }, { x: w - 65, y: 30 }, { x: w - 65, y: 250 }, { x: w - 30, y: 90 }, { x: w - 30, y: 190 }, { x: w - 120, y: 110 }, { x: w - 120, y: 170 }, { x: w - 90, y: 60 }, { x: w - 90, y: 220 }, { x: w - 65, y: 140 }, { x: w - 65, y: 140 }];
+    const homeStarters = m.lineup.home.filter(p => !p.sub);
+    const awayStarters = m.lineup.away.filter(p => !p.sub);
+    [homeStarters, awayStarters].forEach((players, side) => {
+        const positions = side === 0 ? homePositions : awayPositions;
+        const color = side === 0 ? '#E74C3C' : '#4A90D9';
+        players.forEach((p, i) => {
+            const pos = positions[Math.min(i, positions.length - 1)];
+            ctx.beginPath(); ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+            ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(p.num, pos.x, pos.y);
+            ctx.fillStyle = isDark ? '#ddd' : '#333'; ctx.font = '6px sans-serif';
+            ctx.fillText(p.name.slice(0, 3), pos.x, pos.y + 15);
+        });
+    });
+    ctx.fillStyle = isDark ? '#D4A88C' : '#555'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(m.home, w / 4, h - 6); ctx.fillText(m.away, w * 3 / 4, h - 6);
+}
+
+// 盈亏曲线图
+function drawProfitChart() {
+    const canvas = document.getElementById('profitChart'); if (!canvas) return;
+    const ctx = canvas.getContext('2d'); const w = 360, h = 140;
+    ctx.clearRect(0, 0, w, h);
+    const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+    if (!betHistory.length) { ctx.fillStyle = isDark ? '#8B7535' : '#A68A3C'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('暂无投注记录', w / 2, h / 2); return; }
+    // 计算累计盈亏
+    const sorted = [...betHistory].reverse();
+    let cumProfit = 0;
+    const points = sorted.map((h, i) => { cumProfit += (h.profit || -h.amount || 0); return { x: 20 + i / (sorted.length - 1 || 1) * (w - 40), y: 0, v: cumProfit }; });
+    const maxV = Math.max(...points.map(p => Math.abs(p.v)), 100);
+    points.forEach(p => p.y = h / 2 - (p.v / maxV) * (h / 2 - 20));
+    // 零线
+    ctx.strokeStyle = isDark ? 'rgba(201,168,76,.3)' : 'rgba(139,105,20,.3)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(20, h / 2); ctx.lineTo(w - 20, h / 2); ctx.stroke();
+    // 折线
+    ctx.beginPath(); ctx.strokeStyle = '#3DB88A'; ctx.lineWidth = 2;
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.stroke();
+    // 填充
+    ctx.lineTo(points[points.length - 1].x, h / 2); ctx.lineTo(points[0].x, h / 2); ctx.closePath();
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, h); fillGrad.addColorStop(0, 'rgba(61,184,138,.3)'); fillGrad.addColorStop(1, 'rgba(61,184,138,0)');
+    ctx.fillStyle = fillGrad; ctx.fill();
+    // 当前值
+    const last = points[points.length - 1];
+    ctx.fillStyle = last.v >= 0 ? '#3DB88A' : '#E74C3C'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((last.v >= 0 ? '+' : '') + '¥' + Math.round(last.v), w - 20, last.y - 6);
+    // 标签
+    ctx.fillStyle = isDark ? '#8B7535' : '#A68A3C'; ctx.font = '8px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(sorted[0]?.time ? new Date(sorted[0].time).toLocaleDateString() : '', 20, h - 4);
+    ctx.textAlign = 'right'; ctx.fillText('现在', w - 20, h - 4);
+    ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.textAlign = 'center'; ctx.fillText('累计盈亏走势', w / 2, 12);
+}
+
+// 更多主题
+let currentTheme = localStorage.getItem('fbs-theme-v2') || 'dark';
+const THEMES = {
+    dark: { bg: '#1A0A0A', card: '#2C1515', gold: '#C9A84C', red: '#D42A2A', green: '#2D8A6A', blue: '#4A90D9' },
+    gold: { bg: '#1A160A', card: '#2C2615', gold: '#F5C842', red: '#D47A2A', green: '#2D8A4A', blue: '#4A70D9' },
+    ocean: { bg: '#0A141A', card: '#15202C', gold: '#4AC9C9', red: '#D44A6A', green: '#2DA8A6', blue: '#4AC9D9' },
+    forest: { bg: '#0A1A0E', card: '#152C1E', gold: '#7AC94C', red: '#D44A4A', green: '#3DB88A', blue: '#4A90D9' },
+};
+function applyTheme(name) {
+    currentTheme = name; localStorage.setItem('fbs-theme-v2', name);
+    const t = THEMES[name] || THEMES.dark;
+    const root = document.documentElement;
+    root.style.setProperty('--bg', t.bg); root.style.setProperty('--card', t.card);
+    root.style.setProperty('--gold', t.gold); root.style.setProperty('--red', t.red);
+    root.style.setProperty('--green', t.green); root.style.setProperty('--blue-accent', t.blue);
+    showToast('🎨 主题已切换', 1200); renderCurrentPage();
+}
+function showThemePicker() {
+    const modal = $('#logoutModal'); if (!modal) return;
+    const names = { dark: '🌙 暗夜红', gold: '✨ 鎏金橙', ocean: '🌊 深海蓝', forest: '🌿 森林绿' };
+    modal.querySelector('.modal-title').textContent = '🎨 选择主题';
+    modal.querySelector('.modal-text').innerHTML = Object.entries(THEMES).map(([key, t]) =>
+        `<div onclick="applyTheme('${key}');closeLogoutModal()" style="display:flex;align-items:center;gap:10px;padding:10px;margin:4px 0;border-radius:10px;cursor:pointer;background:${key===currentTheme?'var(--card-hover)':'transparent'};border:1px solid ${key===currentTheme?'var(--gold)':'var(--border)'}">
+            <span style="width:28px;height:28px;border-radius:50%;background:${t.red};flex-shrink:0"></span>
+            <span style="flex:1;text-align:left;font-weight:${key===currentTheme?'700':'400'}">${names[key]}</span>
+            ${key===currentTheme?'<span style="color:var(--gold)">✓</span>':''}
+        </div>`).join('');
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
+}
+
 // 进球时间分布图
 function drawGoalTimeChart(m) {
     const canvas = document.getElementById('goalTimeChart');
