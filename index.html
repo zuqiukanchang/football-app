@@ -4095,6 +4095,16 @@ function addWalletTx(type, amount, status, desc) {
 // 支付密码完整流程
 let walletPinFlow = ''; // setup / change / reset / verify
 let walletPinTemp = '';
+let pinErrorCount = parseInt(localStorage.getItem('fbs-pin-errors') || '0');
+let pinLockUntil = parseInt(localStorage.getItem('fbs-pin-lock') || '0');
+function isPinLocked() { if (Date.now() < pinLockUntil) { const mins = Math.ceil((pinLockUntil - Date.now()) / 60000); showToast(`🔒 密码已锁定，${mins}分钟后重试`); return true; } if (Date.now() >= pinLockUntil && pinLockUntil > 0) { pinErrorCount = 0; pinLockUntil = 0; savePinState(); } return false; }
+function recordPinError() { pinErrorCount++; if (pinErrorCount >= 3) { pinLockUntil = Date.now() + 15 * 60000; showToast('🔒 连续3次错误，锁定15分钟', 4000); } savePinState(); }
+function savePinState() { localStorage.setItem('fbs-pin-errors', pinErrorCount); localStorage.setItem('fbs-pin-lock', pinLockUntil); }
+// 输入安全：过滤非数字+防粘贴
+function filterPinInput(input) {
+    input.addEventListener('paste', e => e.preventDefault());
+    input.addEventListener('input', e => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
+}
 function showWalletPinUI(action) {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
     walletPinFlow = action; walletPinTemp = '';
@@ -4175,6 +4185,7 @@ function confirmPinReset() {
 function verifyWalletPin() {
     return new Promise(resolve => {
         if (!walletPin) { showWalletPinUI('setup'); resolve(false); return; }
+        if (isPinLocked()) { resolve(false); return; }
         const modal = document.getElementById('logoutModal'); if (!modal) { resolve(false); return; }
         walletPinTemp = '';
         modal.querySelector('.modal-btn-cancel').style.display = '';
@@ -4182,19 +4193,36 @@ function verifyWalletPin() {
         modal.querySelector('.modal-btn-cancel').onclick = () => { walletPinTemp = ''; closeLogoutModal(); resolve(false); };
         modal.querySelector('.modal-title').textContent = '🔐 验证支付密码';
         modal.querySelector('.modal-text').innerHTML = `<div style="display:flex;gap:8px;justify-content:center;margin:16px 0" id="pinDots">${'<div class="pin-dot"></div>'.repeat(6)}</div>
-            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" style="position:absolute;opacity:0;width:0;height:0" oninput="onVerifyPinInput(this.value, (OK)=>{closeLogoutModal();resolve(OK)})">
+            <input type="password" id="pinInput" maxlength="6" inputmode="numeric" autocomplete="off" style="position:absolute;opacity:0;width:0;height:0" oninput="onVerifyPinInput(this.value, (OK)=>{closeLogoutModal();resolve(OK)})">
             <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击输入支付密码</div>
             <div id="pinMsg" style="font-size:.73rem;color:var(--red-bright);text-align:center;margin-top:8px;display:none">❌ 密码错误</div>
+            ${pinErrorCount>0?`<div style="font-size:.68rem;color:var(--orange);text-align:center;margin-top:4px">⚠️ 已错误${pinErrorCount}次，再错${3-pinErrorCount}次将锁定15分钟</div>`:''}
             <div style="font-size:.68rem;color:var(--gold);text-align:center;margin-top:8px;cursor:pointer" onclick="closeLogoutModal();showWalletPinUI(\'reset\')">忘记密码？</div>`;
         modal.querySelector('.modal-btn-confirm').style.display = 'none';
         modal.classList.add('show');
-        setTimeout(() => document.getElementById('pinInput')?.focus(), 300);
+        setTimeout(() => { const inp = document.getElementById('pinInput'); if(inp)filterPinInput(inp); inp?.focus(); }, 300);
+    });
+}
+// 大额交易额外验证
+function verifyLargeTransaction(amount) {
+    if (amount < 1000) return true;
+    return new Promise(resolve => {
+        const modal = document.getElementById('logoutModal'); if (!modal) { resolve(false); return; }
+        modal.querySelector('.modal-btn-cancel').style.display = '';
+        modal.querySelector('.modal-title').textContent = '⚠️ 大额交易验证';
+        modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">单笔¥${amount}超过限额，需短信验证</p>
+            <input id="largeCodeInput" placeholder="输入短信验证码（演示：1234）" maxlength="6" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center"><button class="sim-btn" style="font-size:.75rem;margin:4px 0;width:100%" onclick="showToast('📱 验证码：1234（演示）')">获取验证码</button>`;
+        modal.querySelector('.modal-btn-confirm').textContent = '确认';
+        modal.querySelector('.modal-btn-confirm').onclick = () => { const c = document.getElementById('largeCodeInput')?.value; closeLogoutModal(); resolve(c === '1234'); };
+        modal.querySelector('.modal-btn-cancel').onclick = () => { closeLogoutModal(); resolve(false); };
+        modal.classList.add('show');
     });
 }
 function onVerifyPinInput(val, callback) {
     onPinInput(val);
     if (val.length === 6) {
-        if (val === walletPin) { callback(true); } else { document.getElementById('pinMsg').style.display = ''; document.getElementById('pinInput').value = ''; walletPinTemp = ''; updateDots(''); }
+        if (val === walletPin) { pinErrorCount = 0; savePinState(); callback(true); }
+        else { recordPinError(); document.getElementById('pinMsg').style.display = ''; document.getElementById('pinInput').value = ''; walletPinTemp = ''; updateDots(''); if (isPinLocked()) callback(false); }
     }
 }
 function updateDots(val) { const dots = document.querySelectorAll('#pinDots .pin-dot'); dots.forEach((d, i) => { d.textContent = val[i] ? '●' : ''; }); }
@@ -4265,6 +4293,7 @@ async function doWithdraw() {
     if (amt > 5000) { showToast('单日提现上限¥5000'); return; }
     if (amt > walletBalance) { showToast('余额不足'); return; }
     const ok = await verifyWalletPin(); if (!ok) return;
+    if (amt >= 1000) { const largeOk = await verifyLargeTransaction(amt); if (!largeOk) { showToast('❌ 大额验证失败'); return; } }
     const fee = Math.max(1, Math.min(20, Math.round(amt * 0.01)));
     walletBalance -= amt;
     walletFrozen += amt - fee;
