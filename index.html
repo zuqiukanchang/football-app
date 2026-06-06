@@ -1083,7 +1083,10 @@
                 <select id="backtestOdds" onchange="renderBacktest(backtestPeriod)" style="flex:1;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.72rem"><option value="all">全部赔率</option><option value="low">低赔(<2.0)</option><option value="mid">中赔(2.0-3.5)</option><option value="high">高赔(>3.5)</option></select>
                 <select id="backtestSide" onchange="renderBacktest(backtestPeriod)" style="flex:1;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.72rem"><option value="all">全部</option><option value="home">主队预测</option><option value="away">客队预测</option></select>
             </div>
+            <div id="btStrategyPanel" style="margin-bottom:6px;font-size:.68rem;color:var(--sub)">策略：<select id="btStrategy" onchange="renderBacktest(backtestPeriod)" style="padding:4px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.68rem"><option value="default">默认（AI推荐方向）</option><option value="conservative">稳健（仅>3星）</option><option value="aggressive">激进（全部方向）</option></select></div>
             <div id="backtestContent"></div>
+            <button class="sim-btn secondary" style="font-size:.7rem;width:100%;margin-top:8px" onclick="exportBacktestReport()">📥 导出回测报告</button>
+            <div id="btComparePanel" style="margin-top:10px"></div>
         </div>
     </div>
     <!-- 射手榜面板 -->
@@ -4065,6 +4068,8 @@ function renderBacktest(period) {
     if (leagueSel && leagueSel.options.length <= 1) {
         leagueSel.innerHTML = '<option value="all">全部联赛</option>' + leagues.map(l => `<option value="${l}" ${btLeague===l?'selected':''}>${l}</option>`).join('');
     }
+    // 多策略回测
+    const strategy = document.getElementById('btStrategy')?.value || 'default';
     // 运行回测比对
     const results = filtered.map(m => {
         const actual = m.homeGoals > m.awayGoals ? '胜' : m.homeGoals < m.awayGoals ? '负' : '平';
@@ -4152,7 +4157,50 @@ function renderBacktest(period) {
                 <span style="flex:1;text-align:center;color:${r.correct ? 'var(--green-bright)' : 'var(--red-bright)'};font-weight:700">${r.correct ? '✓' : '✗'}</span>
             </div>`).join('') : '<div style="color:var(--sub);text-align:center;padding:12px">暂无回测数据，请等待比赛结束后查看</div>'}
         </div>`;
-    if (results.length > 1) setTimeout(() => drawAccuracyCurve(results), 150);
+    // 资金曲线
+    if (results.length > 1) {
+        setTimeout(() => { drawAccuracyCurve(results); drawFundCurve(results); renderStrategyCompare(results); }, 150);
+    }
+}
+// 资金曲线
+function drawFundCurve(results) {
+    const existing = document.getElementById('fundCurve');
+    if (!existing) { const c = document.createElement('canvas'); c.id = 'fundCurve'; c.width = 360; c.height = 100; c.style.cssText = 'width:100%;border-radius:12px;background:var(--card);margin-top:8px'; document.getElementById('backtestContent').appendChild(c); }
+    const canvas = document.getElementById('fundCurve'); if (!canvas) return;
+    const ctx = canvas.getContext('2d'); const isDark = !document.documentElement.classList.contains('light');
+    ctx.fillStyle = isDark ? '#2C1515' : '#FFFFFF'; ctx.fillRect(0, 0, 360, 100);
+    let fund = 1000; const points = [{x:10, y:50, v:1000}];
+    results.slice(0, 30).forEach((r, i) => { fund += r.correct ? 50 : -30; points.push({ x: 10 + i * 11.5, y: 90 - (fund / 2000) * 80, v: fund }); });
+    ctx.strokeStyle = '#3DB88A'; ctx.lineWidth = 2; ctx.beginPath();
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)); ctx.stroke();
+    // 零线
+    ctx.strokeStyle = isDark ? 'rgba(201,168,76,.3)' : 'rgba(139,105,20,.3)'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(10, 50); ctx.lineTo(350, 50); ctx.stroke();
+    ctx.fillStyle = fund >= 1000 ? '#3DB88A' : '#E74C3C'; ctx.font = 'bold 10px sans-serif';
+    ctx.fillText('¥' + fund, 300, points[points.length - 1].y - 5);
+    ctx.fillStyle = isDark ? '#D4A88C' : '#6B5544'; ctx.font = '8px sans-serif'; ctx.fillText('资金曲线', 10, 12);
+}
+// 多策略对比
+function renderStrategyCompare(results) {
+    const container = document.getElementById('btComparePanel'); if (!container) return;
+    const strategies = [
+        { name: '默认策略', color: '#C9A84C', correct: results.filter(r => r.correct).length, total: results.length },
+        { name: '稳健(>3星)', color: '#3DB88A', correct: results.filter(r => r.correct && r.stars >= 4).length, total: results.filter(r => r.stars >= 4).length },
+        { name: '激进(全部)', color: '#E74C3C', correct: results.filter(r => r.stars >= 2 && r.correct).length, total: results.filter(r => r.stars >= 2).length },
+    ];
+    let maxDrawdown = 0, currentDD = 0, peak = 1000, fund = 1000;
+    results.forEach(r => { fund += r.correct ? 50 : -30; if (fund > peak) { peak = fund; currentDD = 0; } else { currentDD = (peak - fund) / peak * 100; maxDrawdown = Math.max(maxDrawdown, currentDD); } });
+    container.innerHTML = `<div style="background:var(--card);border-radius:12px;padding:12px;margin-top:8px"><div style="color:var(--gold);font-weight:700;margin-bottom:6px;font-size:.78rem">📊 多策略对比</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:.65rem;color:var(--gold-dim);text-align:center;padding-bottom:4px;border-bottom:2px solid var(--border)"><span>策略</span><span>胜率</span><span>回报率</span><span>最大回撤</span></div>
+        ${strategies.map(s => { const rate = s.total > 0 ? Math.round(s.correct / s.total * 100) : 0; return`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;padding:4px 0;font-size:.68rem;text-align:center;border-bottom:1px solid var(--border)"><span style="color:${s.color}">${s.name}</span><span>${rate}%</span><span style="color:${rate>50?'var(--green-bright)':'var(--orange)'}">${((rate-50)*2).toFixed(1)}%</span><span>${maxDrawdown.toFixed(1)}%</span></div>`; }).join('')}</div>`;
+}
+// 回测报告导出
+function exportBacktestReport() {
+    const finished = matchData.filter(m => m.status === 'finished' && m.aiPredict);
+    const correct = finished.filter(m => { const actual = m.homeGoals > m.awayGoals ? '胜' : m.homeGoals < m.awayGoals ? '负' : '平'; return m.aiPredict.recommend === actual; }).length;
+    const report = `赤金足坛 · 回测报告\n${'='.repeat(30)}\n日期：${new Date().toLocaleDateString()}\n回测场次：${finished.length}\n正确：${correct}\n准确率：${(correct/finished.length*100).toFixed(1)}%\n回报率：模拟¥1000→¥${(1000+correct*50-(finished.length-correct)*30)}\n\n详情请查看APP内完整报告`;
+    if (navigator.clipboard) { navigator.clipboard.writeText(report).then(() => showToast('✅ 报告已复制到剪贴板')); }
+    else { showToast('📋 ' + report.slice(0, 50) + '...'); }
 }
 
 function runSimulation(){
