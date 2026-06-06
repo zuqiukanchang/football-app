@@ -3774,6 +3774,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="showPrivacyDashboard()"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
+                <div class="menu-item" onclick="showReferralInfo()"><div class="menu-left"><span class="menu-icon">🎁</span><span class="menu-text">邀请好友</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showPremiumModal()"><div class="menu-left"><span class="menu-icon">👑</span><span class="menu-text">${isPremium?'至尊会员':'升级会员'}</span></div><span style="font-size:.65rem;color:${isPremium?'var(--gold)':'var(--sub)'}">${isPremium?'已激活':'免费'}</span></div>
                 <div class="menu-item" onclick="exportUserData()"><div class="menu-left"><span class="menu-icon">💾</span><span class="menu-text">备份数据</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showSyncInfo()"><div class="menu-left"><span class="menu-icon">☁️</span><span class="menu-text">数据同步</span></div><span class="menu-arrow">›</span></div>
@@ -4332,6 +4333,8 @@ function handleLoginSubmit() {
     const maskedPhone = phone.slice(0, 3) + '****' + phone.slice(7);
     const user = { phone: maskedPhone, level, role, loginTime: Date.now(), loginMethod };
     localStorage.setItem('fbs-user-v3', JSON.stringify(user));
+    // 注册时间保护
+    if (!localStorage.getItem('fbs-reg-time')) { const r = signRegTime(); localStorage.setItem('fbs-reg-time', r.ts); }
     // 迁移游客数据
     const guestData = localStorage.getItem('fbs-guest-data');
     if (guestData) { try { const gd = JSON.parse(guestData); if (gd.betSlip) betSlip = [...betSlip, ...gd.betSlip]; if (gd.favorites) favorites = [...favorites, ...gd.favorites]; localStorage.removeItem('fbs-guest-data'); showToast('📥 游客数据已迁移'); } catch {} }
@@ -4916,6 +4919,7 @@ async function initApp(){
     generateNotifications();
     showPromoBanner();
     checkMemberExpiry();
+    sendLegacyNotification();
 
     setTimeout(()=>{
         if (location.hash && location.hash !== '#home') restoreFromHash();
@@ -5615,7 +5619,52 @@ function activateMember(tier, plan) {
     showToast(`✅ ${p.label}已激活 · ${PRICING[tier].name}（需支付¥${p.price}，当前演示模式）`);
     renderProfile();
 }
-function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); localStorage.removeItem('fbs-member-since'); localStorage.removeItem('fbs-member-expiry'); localStorage.removeItem('fbs-auto-renew'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
+function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); localStorage.removeItem('fbs-member-since'); localStorage.removeItem('fbs-member-expiry'); localStorage.removeItem('fbs-auto-renew'); closeLogoutModal(); addAuditLog('退出会员'); showToast('已退出会员'); renderProfile(); }
+// 防作弊：注册时间校验
+function signRegTime() { const ts = Date.now().toString(); const hash = btoa(ts).slice(0, 8); localStorage.setItem('fbs-reg-hash', hash); return { ts, hash }; }
+function verifyRegTime() { const ts = localStorage.getItem('fbs-reg-time'); const hash = localStorage.getItem('fbs-reg-hash'); return ts && hash && btoa(ts).slice(0, 8) === hash; }
+function isLegacyVerified() { return verifyRegTime() && (Date.now() - parseInt(localStorage.getItem('fbs-reg-time')||'0') > 90*86400000); }
+// 价格后端校验（模拟）
+function verifyPrice(tier, planKey) {
+    const plan = PRICING[tier].plans[planKey];
+    const serverPrice = plan.price; // 模拟后端返回
+    if (plan.price !== serverPrice) { showToast('⚠️ 价格异常，请刷新重试'); return false; }
+    addAuditLog(`价格校验通过: ${tier}/${planKey} ¥${serverPrice}`);
+    return true;
+}
+// 邀请系统
+let referralCode = localStorage.getItem('fbs-referral') || '';
+let invitedBy = localStorage.getItem('fbs-invited-by') || '';
+function generateReferral() { referralCode = 'R' + Math.random().toString(36).slice(2, 8).toUpperCase(); localStorage.setItem('fbs-referral', referralCode); return referralCode; }
+function applyReferral(code) {
+    if (!code || code === referralCode) { showToast('不能使用自己的邀请码'); return; }
+    if (invitedBy) { showToast('已使用过邀请码'); return; }
+    invitedBy = code; localStorage.setItem('fbs-invited-by', code);
+    // 双方各得15天
+    const extraDays = 15;
+    if (isPremium && memberExpiry) { memberExpiry += extraDays * 86400000; localStorage.setItem('fbs-member-expiry', memberExpiry); }
+    showToast(`🎁 邀请成功！双方各得${extraDays}天会员`, 3000);
+    addAuditLog('使用邀请码: ' + code);
+}
+function showReferralInfo() {
+    const code = referralCode || generateReferral();
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-title').textContent = '🎁 邀请好友';
+    modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center;line-height:2"><p>你的邀请码：</p><p style="font-size:2rem;font-weight:800;color:var(--gold);letter-spacing:4px">${code}</p><p style="font-size:.78rem;color:var(--sub)">好友输入邀请码激活会员<br>双方各得<strong style="color:var(--gold)">15天</strong>额外会员时长</p>${invitedBy?`<p style="font-size:.7rem;color:var(--green-bright)">✅ 已使用邀请码 ${invitedBy}</p>`:''}</div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
+}
+// 老用户专属通知
+function sendLegacyNotification() {
+    if (!isLegacyVerified() || localStorage.getItem('fbs-legacy-notified')) return;
+    const notif = { _key: 'legacy_' + Date.now(), mid: '', team: '', type: 'system', msg: '🏆 老用户专属：永久原价续费+钻石升级5折+已赠1月体验', time: Date.now(), read: false };
+    notificationHistory.unshift(notif); unreadCount++;
+    saveNotifications(); updateMsgBadge();
+    localStorage.setItem('fbs-legacy-notified', 'true');
+    addAuditLog('发送老用户专属通知');
+}
 // 会员状态管理
 let memberSince = parseInt(localStorage.getItem('fbs-member-since') || '0');
 let memberExpiry = parseInt(localStorage.getItem('fbs-member-expiry') || '0');
