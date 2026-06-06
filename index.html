@@ -3747,8 +3747,8 @@ function renderProfile(){
                 ${isPremium?'<div style="display:inline-block;margin-left:6px;padding:4px 10px;border-radius:10px;font-size:.7rem;background:linear-gradient(135deg,#C9A84C,#8B6914);color:#1A0A0A;font-weight:700">👑 会员</div>':''}
                 ${isPremium ? `<div class="expire-bar"><div class="expire-fill" style="width:${expiryPct}%"></div></div><div class="expire-text">剩余 ${expiryDays} 天 · ${expiryDateStr} 到期</div>` : ''}
                 <div class="profile-btn-row">
-                    <button class="btn-outline" onclick="showToast('续费功能开发中')">${isPremium?'续费':'开通会员'}</button>
-                    <button class="btn-solid" onclick="showToast('升级功能开发中')">升级</button>
+                    <button class="btn-outline" onclick="showPremiumModal()">${isPremium?'续费':'开通会员'}</button>
+                    <button class="btn-solid" onclick="showPremiumModal()">升级</button>
                 </div>
             </div>
             <!-- 数据统计 -->
@@ -3780,7 +3780,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="showFeedbackForm()"><div class="menu-left"><span class="menu-icon">💬</span><span class="menu-text">意见反馈</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
-                <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showPrivacyDashboard()"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showHelpCenter()"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
                 ${isAdmin()?`<div class="menu-item" onclick="navigateTo('admin')"><div class="menu-left"><span class="menu-icon">⚙️</span><span class="menu-text">AI系统设置</span></div><span style="font-size:.65rem;color:var(--gold)">管理员</span></div>`:''}
             </div>
