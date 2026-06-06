@@ -2282,6 +2282,7 @@ function updateBetBadge(){const b=$('#betBadge');b.textContent=betSlip.length;b.
 function loadFavorites(){try{const r=localStorage.getItem('fbs-favs-v3');return r?JSON.parse(r):[]}catch{return[]}}
 function saveFavorites(){localStorage.setItem('fbs-favs-v3',JSON.stringify(favorites))}
 function loadUser(){try{const r=localStorage.getItem('fbs-user-v3');return r?JSON.parse(r):null}catch{return null}}
+function saveGuestData(){localStorage.setItem('fbs-guest-data',JSON.stringify({betSlip:betSlip.slice(0,10),favorites:favorites.slice(0,20),time:Date.now()}))}
 function getUserRole(){const u=loadUser();return u?.role||'normal_user'}
 function isAdmin(){return getUserRole()==='super_admin'}
 // 权限守卫
@@ -2319,7 +2320,7 @@ function navigateTo(page,data){
         else if(page==='predict')renderPredictCenter()
         else if(page==='simulator')renderSimulatorTeams()
         else if(page==='profile')renderProfile()
-        else if(page==='login')renderLogin()
+        else if(page==='login'){if(!loadUser())saveGuestData();renderLogin()}
         else if(page==='team'){if(data)renderTeam(data);else{const m=matchData.find(x=>followedTeams.includes(x.home));if(m)renderTeam(m.home);else navigateTo('home')}}
         else if(page==='messages'){renderMessages()}
         else if(page==='admin'){if(guardAdmin())renderAdminPanel()}
@@ -3985,11 +3986,13 @@ function confirmLogout() {
 }
 function renderLogin() {
     const rememberedPhone = localStorage.getItem('fbs-remembered-phone') || '';
+    const guestData = localStorage.getItem('fbs-guest-data');
     $('#loginContent').innerHTML = `
     <div style="padding:24px 16px">
+        ${guestData?`<div style="background:rgba(201,168,76,.1);border-radius:12px;padding:12px;margin-bottom:12px;text-align:center;font-size:.75rem;color:var(--gold)">💡 检测到游客数据，登录后将自动迁移到正式账号</div>`:''}
         <div style="background:var(--card);border-radius:14px;padding:24px 20px;text-align:center">
             <div style="font-size:3rem;margin-bottom:12px">🔐</div>
-            <h3 style="color:var(--gold);margin-bottom:16px">登录足球看场</h3>
+            <h3 style="color:var(--gold);margin-bottom:16px">登录赤金足坛</h3>
             <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)">
                 <div class="method-tab-login active" data-lmethod="sms" onclick="switchLoginMethod('sms')">📱 短信登录</div>
                 <div class="method-tab-login" data-lmethod="password" onclick="switchLoginMethod('password')">🔑 密码登录</div>
@@ -3999,41 +4002,42 @@ function renderLogin() {
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <span style="padding:0 12px;color:var(--sub);border-right:1px solid var(--border);font-size:.85rem">+86</span>
                         <input type="tel" id="loginPhone" placeholder="手机号" maxlength="11" value="${rememberedPhone}" oninput="validatePhone()" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
-                    </div>
-                    <div id="phoneHint" class="input-hint" style="padding:0 12px"></div>
+                    </div><div id="phoneHint" class="input-hint" style="padding:0 12px"></div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <input type="text" id="loginCode" placeholder="验证码" maxlength="6" oninput="validateCode()" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                         <button id="loginCodeBtn" onclick="sendLoginCode()" style="padding:0 14px;height:46px;background:var(--red);border:none;color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;border-radius:0 10px 10px 0">获取验证码</button>
                     </div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <span style="padding:0 12px;color:var(--sub);border-right:1px solid var(--border)">🎫</span>
-                        <input type="text" id="loginInvite" placeholder="邀请码（选填）" maxlength="16" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="text" id="loginInvite" placeholder="邀请码（选填，管理员用ADMIN2026）" maxlength="16" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                     </div>
                 </div>
                 <div id="login-pwd-panel" style="display:none">
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <span style="padding:0 12px;color:var(--sub);border-right:1px solid var(--border);font-size:.85rem">+86</span>
-                        <input type="tel" id="loginPwdPhone" placeholder="手机号" maxlength="11" value="${rememberedPhone}" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="tel" id="loginPwdPhone" placeholder="管理员手机号" maxlength="11" value="${rememberedPhone}" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                     </div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
-                        <input type="password" id="loginPassword" placeholder="密码" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="password" id="loginPassword" placeholder="管理员密码（8位+大小写+数字）" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                         <span style="padding-right:12px;cursor:pointer;color:var(--sub)" onclick="toggleLoginPwd()" id="loginPwdToggle">👁</span>
                     </div>
                     <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--sub);margin-bottom:10px;cursor:pointer">
                         <input type="checkbox" id="loginRemember" checked> 记住登录状态
                     </label>
+                    <p style="font-size:.68rem;color:var(--gold-dim);margin-bottom:8px">⚠️ 密码登录仅限管理员使用</p>
                 </div>
             </div>
             <button class="sim-btn" onclick="handleLoginSubmit()" style="margin-bottom:12px">登录 / 注册</button>
             <div style="display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--sub);font-size:.73rem">
-                <span style="flex:1;height:1px;background:var(--border)"></span>其他方式登录<span style="flex:1;height:1px;background:var(--border)"></span>
+                <span style="flex:1;height:1px;background:var(--border)"></span>社交账号一键登录<span style="flex:1;height:1px;background:var(--border)"></span>
             </div>
-            <div style="display:flex;justify-content:center;gap:20px">
-                <div onclick="socialQuickLogin('wechat')" style="width:46px;height:46px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;background:var(--card)">💬</div>
-                <div onclick="socialQuickLogin('alipay')" style="width:46px;height:46px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;background:var(--card)">🔵</div>
-                <div onclick="socialQuickLogin('apple')" style="width:46px;height:46px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;background:var(--card)">🍎</div>
+            <div style="display:flex;justify-content:center;gap:16px">
+                <div onclick="socialQuickLogin('wechat')" style="width:48px;height:48px;border-radius:50%;background:#07C160;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;color:#fff;font-weight:700">微</div>
+                <div onclick="socialQuickLogin('qq')" style="width:48px;height:48px;border-radius:50%;background:#12B7F5;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;color:#fff;font-weight:700">QQ</div>
+                <div onclick="socialQuickLogin('apple')" style="width:48px;height:48px;border-radius:50%;background:#000;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;color:#fff">🍎</div>
             </div>
-            <p style="font-size:.7rem;color:var(--sub);margin-top:14px">演示版本 · 验证码：1234</p>
+            <p style="font-size:.68rem;color:var(--sub);margin-top:10px">演示版本 · 验证码：1234</p>
+            <p style="font-size:.65rem;color:var(--gold-dim);margin-top:6px;cursor:pointer" onclick="navigateTo('home');showToast('👋 已进入游客模式，高级功能需登录')">跳过登录，先看看 →</p>
         </div>
     </div>`;
 }
@@ -4115,6 +4119,9 @@ function handleLoginSubmit() {
     const maskedPhone = phone.slice(0, 3) + '****' + phone.slice(7);
     const user = { phone: maskedPhone, level, role, loginTime: Date.now(), loginMethod };
     localStorage.setItem('fbs-user-v3', JSON.stringify(user));
+    // 迁移游客数据
+    const guestData = localStorage.getItem('fbs-guest-data');
+    if (guestData) { try { const gd = JSON.parse(guestData); if (gd.betSlip) betSlip = [...betSlip, ...gd.betSlip]; if (gd.favorites) favorites = [...favorites, ...gd.favorites]; localStorage.removeItem('fbs-guest-data'); showToast('📥 游客数据已迁移'); } catch {} }
     showToast('✅ ' + level + ' 登录成功！');
     setTimeout(() => navigateTo('profile'), 500);
 }
