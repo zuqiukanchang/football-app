@@ -2045,6 +2045,7 @@ const DataTransformer = {
 
 // 5. DataFetcher — 从jsDelivr CDN获取football.json
 const FOOTBALL_JSON_BASE = 'https://cdn.jsdelivr.net/gh/openfootball/football.json@master/';
+const FOOTBALL_JSON_FALLBACK = 'https://raw.githubusercontent.com/openfootball/football.json/master/'; // 备用CDN
 const LEAGUE_FILE_MAP = {
     '英超': '2024-25/en.1.json', '西甲': '2024-25/es.1.json', '德甲': '2024-25/de.1.json',
     '意甲': '2024-25/it.1.json', '法甲': '2024-25/fr.1.json',
@@ -2052,18 +2053,16 @@ const LEAGUE_FILE_MAP = {
 
 const DataFetcher = {
     async fetchLeague(leagueFile, timeoutMs = 10000) {
-        const url = FOOTBALL_JSON_BASE + leagueFile;
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const resp = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            return await resp.json();
-        } catch (e) {
-            if (e.name === 'AbortError') console.warn('[DataFetcher] Timeout: ' + leagueFile);
-            else console.warn('[DataFetcher] Failed: ' + leagueFile + ' — ' + e.message);
-            return null;
-        } finally { clearTimeout(timer); }
+        const urls = [FOOTBALL_JSON_BASE + leagueFile, FOOTBALL_JSON_FALLBACK + leagueFile];
+        for (const url of urls) {
+            const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const resp = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'application/json' } });
+                if (resp.ok) return await resp.json();
+            } catch (e) { if (e.name !== 'AbortError') console.warn('[DataFetcher] ' + url + ': ' + e.message); }
+            finally { clearTimeout(timer); }
+        }
+        return null;
     },
     async fetchAllLeagues(leagues = Object.keys(LEAGUE_FILE_MAP)) {
         const results = {};
@@ -6214,8 +6213,8 @@ function addAuditLog(action) { aiConfig.auditLog.unshift({action,time:Date.now()
 function renderAdminPanel() {
     const container = document.getElementById('adminContent'); if (!container) return;
     const report = getAIEvolutionReport();
-    const tabs = ['params','evolution','monitor','security','infosec','analytics'];
-    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全',infosec:'🏰 安全架构',analytics:'📈 数据分析'};
+    const tabs = ['params','evolution','monitor','security','infosec','analytics','launch'];
+    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全',infosec:'🏰 安全架构',analytics:'📈 数据分析',launch:'🚀 上线清单'};
     let html = `<div style="padding:12px 16px">
         <div style="background:linear-gradient(135deg,#3D1A1A,#5C2020);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--gold)">
             <div style="color:var(--gold);font-weight:700;font-size:.88rem">🔑 AI系统设置 · ${getUserRole()==='super_admin'?'总账户':'普通用户'}</div>
@@ -6234,6 +6233,21 @@ function renderAdminPanel() {
         html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📊 实时准确率</div>${['sijiliang','ruicai','zhiqiong'].map(p=>{const r=report[p]||{};return`<div class="stat-row"><span>${r.name||p}</span><span style="color:var(--gold)">${r.rate||0}%</span><span style="font-size:.7rem;color:var(--sub)">${r.trend||'--'} ${r.total||0}次</span></div>`;}).join('')}</div>
         <canvas id="adminMonitorChart" width="360" height="120" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:10px"></canvas>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🚨 异常告警</div><div style="font-size:.73rem;color:var(--sub)">${(report.sijiliang?.rate||0)<60?'⚠️ 稳基准度下降，需关注':report.ruicai?.rate||0<55?'⚠️ 睿财准确率偏低':report.zhiqiong?.rate||0<65?'⚠️ 智穹需调整参数':'✅ 所有AI运行正常'}</div></div>`;
+    } else if (adminTab === 'launch') {
+        const checklist = [
+            { item: '真实数据源接入', status: '✅ 代码已就绪（需网络）', detail: 'football.json CDN + GitHub双源' },
+            { item: 'Claude AI配置', status: '✅ 接口已就绪', detail: '个人中心→AI设置→输入sk-ant-api03-xxx' },
+            { item: '微信支付', status: '⏳ 需商户号', detail: '微信支付商户平台→获取AppID+APIv3密钥' },
+            { item: '支付宝支付', status: '⏳ 需商户号', detail: '支付宝开放平台→获取AppID+私钥' },
+            { item: '域名备案', status: '📋 GitHub Pages已就绪', detail: '或绑定自定义域名' },
+            { item: '隐私合规', status: '✅ 完成', detail: '隐私政策+用户协议+SDK清单+Cookie声明' },
+            { item: '安全审计', status: '✅ 完成', detail: '4道防线+金融级PIN+资金存管' },
+            { item: '应用商店上架', status: '📋 需准备', detail: 'iOS:App Store Connect / Android:华为+小米+应用宝' },
+            { item: '数据备份', status: '✅ 就绪', detail: 'GitHub仓库完整历史+导出功能' },
+        ];
+        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🚀 上线准备清单</div>${checklist.map(c=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.72rem"><span>${c.item}</span><span>${c.status}</span></div><div style="font-size:.62rem;color:var(--sub);padding-left:8px">${c.detail}</div>`).join('')}</div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🤖 AI接入步骤</div><div style="font-size:.72rem;color:var(--sub);line-height:1.8">1️⃣ 访问 console.anthropic.com 注册获取API Key<br>2️⃣ 个人中心→AI设置→粘贴Key（sk-ant-api03-xxx）<br>3️⃣ 保存后打开比赛详情→前瞻Tab→自动调用Claude生成深度分析<br>4️⃣ 成本：约¥0.15/次分析</div></div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">💳 支付接入步骤</div><div style="font-size:.72rem;color:var(--sub);line-height:1.8">1️⃣ 微信：pay.weixin.qq.com 注册商户号<br>2️⃣ 支付宝：open.alipay.com 注册应用<br>3️⃣ 将AppID配置到后端API<br>4️⃣ 前端支付按钮自动启用</div></div>`;
     } else if (adminTab === 'analytics') {
         const pageViews = parseInt(localStorage.getItem('fbs-pv') || '0');
         const featureUsage = JSON.parse(localStorage.getItem('fbs-feature-usage') || '{}');
