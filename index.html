@@ -5336,7 +5336,7 @@ function renderLogin() {
                     </div>
                     <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--bg)">
                         <span style="padding:0 12px;color:var(--sub);border-right:1px solid var(--border)">🎫</span>
-                        <input type="text" id="loginInvite" placeholder="邀请码（选填，管理员用ADMIN2026）" maxlength="16" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
+                        <input type="text" id="loginInvite" placeholder="邀请码（选填）" maxlength="16" style="flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:.9rem;outline:none">
                     </div>
                 </div>
                 <div id="login-pwd-panel" style="display:none">
@@ -5359,11 +5359,11 @@ function renderLogin() {
                 <span style="flex:1;height:1px;background:var(--border)"></span>社交账号一键登录<span style="flex:1;height:1px;background:var(--border)"></span>
             </div>
             <div style="display:flex;justify-content:center;gap:16px">
-                <div onclick="socialQuickLogin('wechat')" style="width:48px;height:48px;border-radius:50%;background:#07C160;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;color:#fff;font-weight:700">微</div>
-                <div onclick="socialQuickLogin('qq')" style="width:48px;height:48px;border-radius:50%;background:#12B7F5;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;color:#fff;font-weight:700">QQ</div>
-                <div onclick="socialQuickLogin('apple')" style="width:48px;height:48px;border-radius:50%;background:#000;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;color:#fff">🍎</div>
+                <div onclick="socialQuickLogin('wechat')" style="width:48px;height:48px;border-radius:50%;background:#07C160;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(7,193,96,.3)" title="微信登录"><svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8.69 3.46C4.38 3.46.83 6.65.83 10.6c0 2.18 1.1 4.14 2.8 5.4l-.7 2.1 2.45-1.22c.83.24 1.72.36 2.65.36.52 0 1.03-.05 1.52-.14A4.94 4.94 0 018.2 13c0-2.73 2.44-4.95 5.44-4.95.6 0 1.18.1 1.73.27a5.34 5.34 0 00-6.68-4.86zm5.28 5.07c-.55 0-1 .37-1 .83 0 .45.45.82 1 .82s1-.37 1-.82c0-.46-.45-.83-1-.83zm-3.35 0c-.55 0-1 .37-1 .83 0 .45.45.82 1 .82s1-.37 1-.82c0-.46-.45-.83-1-.83z"/><path d="M17.3 10.6c-3.04 0-5.5 2.16-5.5 4.83 0 2.67 2.46 4.83 5.5 4.83.65 0 1.28-.1 1.87-.28L21 20.5l-.47-1.67a4.52 4.52 0 002.3-3.4c0-2.67-2.47-4.83-5.53-4.83zm-2.2 2.9c.45 0 .82.35.82.78 0 .44-.37.78-.82.78-.46 0-.83-.34-.83-.78 0-.43.37-.78.83-.78zm3.56 0c.46 0 .83.35.83.78 0 .44-.37.78-.83.78-.45 0-.82-.34-.82-.78 0-.43.37-.78.82-.78z"/></svg></div>
+                <div onclick="socialQuickLogin('alipay')" style="width:48px;height:48px;border-radius:50%;background:#1677FF;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(22,119,255,.3)" title="支付宝登录"><svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M15.5 2.5c-1.2 0-2.3.3-3.3.8C10.6 1.8 8.6 1 6.5 1 3 1 .2 3.8.2 7.3c0 3.8 3.3 6.9 7.4 6.9h2.2v2.4c0 .5-.4.9-.9.9H6.5v2h2.4c1.6 0 2.9-1.3 2.9-2.9v-5.7h1.2c4.1 0 7.4-3.1 7.4-6.9S19.6 2.5 15.5 2.5zm-9 4.4c-1.3 0-2.4-1.1-2.4-2.4s1.1-2.4 2.4-2.4 2.4 1.1 2.4 2.4-1.1 2.4-2.4 2.4z"/></svg></div>
+                <div onclick="socialQuickLogin('apple')" style="width:48px;height:48px;border-radius:50%;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)" title="Apple登录"><svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg></div>
             </div>
-            <p style="font-size:.68rem;color:var(--sub);margin-top:10px">演示版本 · 验证码：1234</p>
+            <p style="font-size:.68rem;color:var(--sub);margin-top:10px">首次登录自动注册 · 验证码将通过短信发送</p>
             <p style="font-size:.65rem;color:var(--gold-dim);margin-top:6px;cursor:pointer" onclick="navigateTo('home');showToast('👋 已进入游客模式，高级功能需登录')">跳过登录，先看看 →</p>
         </div>
     </div>`;
@@ -7108,5 +7108,6 @@ document.addEventListener('DOMContentLoaded',()=>{addPinStyles();addSecurityMeta
 </script>
 </body>
 </html>
+
 
 
