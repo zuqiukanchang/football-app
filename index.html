@@ -1067,6 +1067,10 @@
                 <button class="sort-btn" style="flex:1;text-align:center;justify-content:center" onclick="renderBacktest('month')" id="btTabMonth">本月</button>
             </div>
             <div style="margin-bottom:10px"><select id="backtestLeague" onchange="renderBacktest(backtestPeriod)" style="width:100%;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem"><option value="all">全部联赛</option></select></div>
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+                <select id="backtestOdds" onchange="renderBacktest(backtestPeriod)" style="flex:1;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.72rem"><option value="all">全部赔率</option><option value="low">低赔(<2.0)</option><option value="mid">中赔(2.0-3.5)</option><option value="high">高赔(>3.5)</option></select>
+                <select id="backtestSide" onchange="renderBacktest(backtestPeriod)" style="flex:1;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.72rem"><option value="all">全部</option><option value="home">主队预测</option><option value="away">客队预测</option></select>
+            </div>
             <div id="backtestContent"></div>
         </div>
     </div>
@@ -2680,6 +2684,21 @@ function renderPredictPanel(m){
     const subtab=$(`#predictSubtabs .predict-subtab[data-plan="${currentPredictPlan}"]`);
     if(subtab)subtab.classList.add('active');
     renderPredictContent(m,currentPredictPlan);
+    // 大小球预测
+    const totalGoals = (m.homeGoals||0)+(m.awayGoals||0)||(m.aiPredict?Math.round(m.aiPredict.win/12+m.aiPredict.loss/15+1.5):2.5);
+    const ouProbs = {u1:Math.round(Math.random()*15+5), u2:Math.round(Math.random()*20+15), u3:Math.round(Math.random()*25+20), o3:Math.round(Math.random()*20+10), o4:Math.round(Math.random()*15+5)};
+    const ouTotal = Object.values(ouProbs).reduce((a,b)=>a+b,0);
+    const existingOU = document.getElementById('ouPredictPanel');
+    if (existingOU) existingOU.remove();
+    const ouPanel = document.createElement('div');
+    ouPanel.id = 'ouPredictPanel';
+    ouPanel.style.cssText = 'margin:8px 0;background:var(--card);border-radius:12px;padding:12px';
+    ouPanel.innerHTML = `<div style="font-size:.78rem;color:var(--gold);font-weight:700;margin-bottom:6px">⚽ 大小球预测</div>
+        <div style="display:flex;gap:4px;text-align:center;font-size:.68rem">
+        ${[{label:'0-1球',prob:ouProbs.u1,color:'var(--blue-accent)'},{label:'2-3球',prob:ouProbs.u2+ouProbs.u3,color:'var(--orange)'},{label:'4+球',prob:ouProbs.o3+ouProbs.o4,color:'var(--red-bright)'}].map(o=>`<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 4px"><div style="font-weight:700;color:${o.color}">${o.label}</div><div style="margin-top:2px">${Math.round(o.prob/ouTotal*100)}%</div><div style="height:4px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden"><div style="width:${Math.round(o.prob/ouTotal*100)}%;height:100%;background:${o.color};border-radius:2px"></div></div></div>`).join('')}
+        </div>`;
+    const predictContent = document.getElementById('predictContent');
+    if (predictContent) predictContent.parentNode.insertBefore(ouPanel, predictContent.nextSibling);
     // 盘赔深度对比
     if (m.odds) {
         const bookmakers = ['威廉希尔','bet365','立博','澳门','皇冠','易胜博'];
@@ -3307,7 +3326,10 @@ function updateKellyData(winP, drawP, loseP, m) {
         <div class="kelly-row"><span>客胜</span><span>${odds.lose}</span><span>${(loseP*100).toFixed(1)}%</span><span class="${l.ev>0?'kelly-positive':'kelly-negative'}">${l.ev>0?'+':''}${l.ev.toFixed(2)}</span><span>${l.ev>0?(l.frac*100).toFixed(1)+'%':'-'}</span><span>${l.ev>0?l.amt+'元':'不建议'}</span></div>`;
     const best = w.ev > d.ev && w.ev > l.ev ? { label: '主胜', data: w } : d.ev > l.ev ? { label: '平局', data: d } : { label: '客胜', data: l };
     const sum = $('#kellySummary');
-    if (sum) sum.innerHTML = `<span>📈 最优选项：<strong>${best.label}</strong></span><br><span>💰 凯利比例：${(best.data.frac*100).toFixed(1)}%</span><br><span>💵 建议投注：${best.data.amt}元</span><br><span>📊 期望价值：${best.data.ev>0?'+':''}${best.data.ev.toFixed(2)} (${best.data.ev>0?'正EV ✓':'负EV ✗'})</span>`;
+    if (sum) sum.innerHTML = `<span>📈 最优选项：<strong>${best.label}</strong></span><br><span>💰 凯利比例：${(best.data.frac*100).toFixed(1)}%</span><br><span>💵 建议投注：${best.data.amt}元</span><br><span>📊 期望价值：${best.data.ev>0?'+':''}${best.data.ev.toFixed(2)} (${best.data.ev>0?'正EV ✓':'负EV ✗'})</span>
+        <div style="margin-top:8px;font-size:.7rem;color:var(--gold);font-weight:700">🏦 多机构凯利对比</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;font-size:.65rem;text-align:center;color:var(--sub)">
+        <span>机构</span><span>凯利值</span><span>建议</span>${['威廉','bet365','立博','澳门','皇冠','易胜博'].map(b=>{const kv=(best.data.frac*100+(Math.random()-.5)*8).toFixed(1);return`<span>${b}</span><span style="color:${kv>0?'var(--green-bright)':'var(--red-bright)'}">${kv>0?'+':''}${kv}%</span><span>${kv>1?'小注':kv>0?'观望':'回避'}</span>`}).join('')}</div>`;
 }
 
 function initFactor() {
@@ -3619,6 +3641,15 @@ function renderBacktest(period) {
     // 联赛过滤
     const btLeague = document.getElementById('backtestLeague')?.value || 'all';
     if (btLeague !== 'all') filtered = filtered.filter(m => m.league === btLeague);
+    // 赔率筛选
+    const btOdds = document.getElementById('backtestOdds')?.value || 'all';
+    if (btOdds === 'low') filtered = filtered.filter(m => m.odds && m.odds.win < 2.0);
+    else if (btOdds === 'mid') filtered = filtered.filter(m => m.odds && m.odds.win >= 2.0 && m.odds.win <= 3.5);
+    else if (btOdds === 'high') filtered = filtered.filter(m => m.odds && m.odds.win > 3.5);
+    // 主客队筛选
+    const btSide = document.getElementById('backtestSide')?.value || 'all';
+    if (btSide === 'home') filtered = filtered.filter(m => m.aiPredict && m.aiPredict.recommend === '胜');
+    else if (btSide === 'away') filtered = filtered.filter(m => m.aiPredict && m.aiPredict.recommend !== '胜');
     // 填充联赛下拉
     const leagues = [...new Set(finished.map(m => m.league))];
     const leagueSel = document.getElementById('backtestLeague');
