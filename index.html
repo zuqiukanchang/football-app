@@ -1658,6 +1658,7 @@ const DynamicPredictEngine = {
 
     // F4: 赔率隐含概率（去除庄家水分约8%）
     _oddsImpliedProb(odds) {
+        if (!odds || !odds.win || !odds.draw || !odds.loss || odds.win <= 0 || odds.draw <= 0 || odds.loss <= 0) return 0.4;
         const rawW = 1 / odds.win, rawD = 1 / odds.draw, rawL = 1 / odds.loss;
         const overround = rawW + rawD + rawL; // 通常约1.08
         return rawW / overround; // 去除水分后的真实概率
@@ -2287,7 +2288,7 @@ function navigateTo(page,data){
         else if(page==='simulator')renderSimulatorTeams()
         else if(page==='profile')renderProfile()
         else if(page==='login')renderLogin()
-        else if(page==='team'&&data){renderTeam(data)}
+        else if(page==='team'){if(data)renderTeam(data);else{const m=matchData.find(x=>followedTeams.includes(x.home));if(m)renderTeam(m.home);else navigateTo('home')}}
         else if(page==='messages'){renderMessages()}
         // 恢复目标页面滚动位置
         const savedY = scrollPositions[page] || 0;
@@ -4507,18 +4508,6 @@ function toggleFollowTeamPage(teamName, btn) {
     saveFollows();
 }
 
-// ======================== 投注单 ========================
-function toggleBet(matchId){
-    const idx=betSlip.findIndex(b=>b.matchId===matchId);
-    const m=getMatch(matchId);
-    if(idx>-1){betSlip.splice(idx,1);showToast('已移出投注单')}else{betSlip.push({matchId,addedAt:Date.now(),recommend:m?.aiPredict?.recommend||''});showToast('✅ 已加入投注单')}
-    saveBetSlip();updateBetBadge();
-    if(currentPage==='home')renderHome();
-    if(currentPage==='detail'&&currentDetailId===matchId){const mm=getMatch(matchId);if(mm)updateDetailBottomBar(mm)}
-    if(currentPage==='profile')renderProfile();
-}
-function updateBetBadge(){const b=$('#betBadge');b.textContent=betSlip.length;b.style.display=betSlip.length>0?'flex':'none'}
-
 // ======================== 实时更新（首页） ========================
 function updateLiveMatch(){
     const live=matchData.find(m=>m.status==='live');if(!live)return;
@@ -4558,10 +4547,10 @@ async function manualRefresh(){
 
 // ======================== 事件绑定 ========================
 function bindEvents(){
-    // 排序按钮（支持方向切换）
-    $$('.sort-btn').forEach(b=>b.addEventListener('click',function(){
+    // 排序按钮（仅首页工具栏）
+    $$('.toolbar .sort-btn').forEach(b=>b.addEventListener('click',function(){
         if(currentSort===this.dataset.sort){currentSortDir=currentSortDir==='asc'?'desc':'asc'}else{currentSort=this.dataset.sort;currentSortDir='asc'}
-        $$('.sort-btn').forEach(x=>x.classList.remove('active'));this.classList.add('active');
+        $$('.toolbar .sort-btn').forEach(x=>x.classList.remove('active'));this.classList.add('active');
         updateSortUI();renderHome();
     }));
     // 联赛筛选（入场动画）
