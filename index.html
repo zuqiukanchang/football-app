@@ -8,7 +8,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="足球看场">
     <meta name="theme-color" content="#1A0A0A">
-    <meta name="description" content="足球看场 - AI驱动的竞彩赛事分析与预测工具">
+    <meta name="description" content="赤金足坛 - AI驱动的竞彩赛事分析与预测工具">
+    <!-- Open Graph 分享预览 -->
+    <meta property="og:title" content="赤金足坛 · AI赛事分析">
+    <meta property="og:description" content="8因子AI预测 · 凯利投注模型 · 实时赛事数据 · 支持分享精美预测海报">
+    <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='35%25'%3E%3Cstop offset='0%25' stop-color='%23E8C84C'/%3E%3Cstop offset='50%25' stop-color='%23C9A84C'/%3E%3Cstop offset='100%25' stop-color='%236B4513'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='100' fill='%238B0000'/%3E%3Ccircle cx='256' cy='240' r='180' fill='url(%23g)' stroke='%234A2020' stroke-width='8'/%3E%3Ctext x='256' y='270' text-anchor='middle' font-size='140' font-weight='bold' fill='%233A1010'%3E龙%3C/text%3E%3C/svg%3E">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://zuqiukanchang.github.io/football-app/">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='40%25'%3E%3Cstop offset='0%25' stop-color='%23E8C84C'/%3E%3Cstop offset='50%25' stop-color='%23C9A84C'/%3E%3Cstop offset='100%25' stop-color='%238B6914'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)' stroke='%236B4513' stroke-width='2'/%3E%3Cpath d='M25 35 Q35 20 50 25 Q65 20 75 35 M20 50 Q35 45 50 50 Q65 45 80 50 M25 65 Q35 80 50 75 Q65 80 75 65' fill='none' stroke='%236B4513' stroke-width='1.5' opacity='.4'/%3E%3Ccircle cx='35' cy='30' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='65' cy='30' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='30' cy='60' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='70' cy='60' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='50' cy='65' r='6' fill='%236B4513' opacity='.3'/%3E%3Cpath d='M30 30 L25 20 M70 30 L75 20' stroke='%23C9A84C' stroke-width='4' stroke-linecap='round'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='22' font-weight='bold' fill='%234A2020'%3E龙%3C/text%3E%3C/svg%3E">
     <!-- CSP 安全策略（生产环境需根据实际后端调整） -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src *; img-src 'self' data: https:;">
@@ -1024,11 +1030,12 @@
     <div class="calc-panel" id="panel-tool-backtest">
         <div class="section-title" style="padding:12px 8px 4px">📈 预测回测中心</div>
         <div style="padding:8px">
-            <div style="display:flex;gap:8px;margin-bottom:12px">
+            <div style="display:flex;gap:8px;margin-bottom:6px">
                 <button class="sort-btn active" style="flex:1;text-align:center;justify-content:center" onclick="renderBacktest('all')" id="btTabAll">全部</button>
                 <button class="sort-btn" style="flex:1;text-align:center;justify-content:center" onclick="renderBacktest('week')" id="btTabWeek">本周</button>
                 <button class="sort-btn" style="flex:1;text-align:center;justify-content:center" onclick="renderBacktest('month')" id="btTabMonth">本月</button>
             </div>
+            <div style="margin-bottom:10px"><select id="backtestLeague" onchange="renderBacktest(backtestPeriod)" style="width:100%;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem"><option value="all">全部联赛</option></select></div>
             <div id="backtestContent"></div>
         </div>
     </div>
@@ -3221,28 +3228,23 @@ function copyComboResult(text) {
 function renderComboRecommend() {
     const list = $('#comboRecommendList');
     if (!list) return;
-    // 基于 matchData 的 AI 预测生成推荐串关
-    const upcoming = matchData.filter(m => m.status !== 'finished');
-    const highConf = upcoming.filter(m => m.aiPredict.stars >= 4);
+    const upcoming = matchData.filter(m => m.status !== 'finished' && m.aiPredict);
+    // 按EV排序生成最优串关
+    const ranked = upcoming.map(m => {
+        const odd = m.odds[m.aiPredict.recommend === '胜' ? 'win' : m.aiPredict.recommend === '平' ? 'draw' : 'loss'];
+        const prob = m.aiPredict[m.aiPredict.recommend === '胜' ? 'win' : m.aiPredict.recommend === '平' ? 'draw' : 'loss'] / 100;
+        return { id: m.id, text: `${m.home} ${m.aiPredict.recommend}`, odds: odd, prob, ev: prob * odd - 1, rec: m.aiPredict.recommend };
+    }).sort((a, b) => b.ev - a.ev);
     const recs = [];
-    if (highConf.length >= 3) {
-        const top3 = highConf.slice(0, 3);
-        recs.push({
-            text: top3.map(m => `${m.home} ${m.aiPredict.recommend}`).join(' → '),
-            odds: top3.reduce((a, m) => a * m.odds.win, 1).toFixed(2),
-            prob: top3.reduce((a, m) => a * m.aiPredict.win / 100, 1),
-            ids: top3.map(m => m.id),
-        });
+    if (ranked.length >= 3) {
+        const top3 = ranked.slice(0, 3);
+        recs.push({ text: top3.map(r => r.text).join(' → '), odds: top3.reduce((a, r) => a * r.odds, 1).toFixed(2), prob: top3.reduce((a, r) => a * r.prob, 1), ids: top3.map(r => r.id), ev: top3.reduce((a, r) => a + r.ev, 0) });
     }
-    if (highConf.length >= 2) {
-        const sub = highConf.slice(0, 2);
-        recs.push({
-            text: sub.map(m => `${m.home} ${m.aiPredict.recommend}`).join(' → '),
-            odds: sub.reduce((a, m) => a * m.odds.win, 1).toFixed(2),
-            prob: sub.reduce((a, m) => a * m.aiPredict.win / 100, 1),
-            ids: sub.map(m => m.id),
-        });
+    if (ranked.length >= 2) {
+        const top2 = ranked.slice(0, 2);
+        recs.push({ text: top2.map(r => r.text).join(' → '), odds: top2.reduce((a, r) => a * r.odds, 1).toFixed(2), prob: top2.reduce((a, r) => a * r.prob, 1), ids: top2.map(r => r.id), ev: top2.reduce((a, r) => a + r.ev, 0) });
     }
+    recs.sort((a, b) => b.ev - a.ev);
     list.innerHTML = recs.length ? recs.map((r, i) => {
         const ev = r.prob * parseFloat(r.odds) - 1;
         return `<div class="predict-list-card" onclick="applyComboRecommend([${r.ids.map(id=>"'"+id+"'").join(',')}])" style="margin:0 0 8px">
@@ -3339,6 +3341,15 @@ function renderBacktest(period) {
     const now = Date.now();
     if (period === 'week') { const w = now - 7 * 86400000; filtered = finished.filter(m => now + m.timeOffset * 60000 > w); }
     else if (period === 'month') { const mo = now - 30 * 86400000; filtered = finished.filter(m => now + m.timeOffset * 60000 > mo); }
+    // 联赛过滤
+    const btLeague = document.getElementById('backtestLeague')?.value || 'all';
+    if (btLeague !== 'all') filtered = filtered.filter(m => m.league === btLeague);
+    // 填充联赛下拉
+    const leagues = [...new Set(finished.map(m => m.league))];
+    const leagueSel = document.getElementById('backtestLeague');
+    if (leagueSel && leagueSel.options.length <= 1) {
+        leagueSel.innerHTML = '<option value="all">全部联赛</option>' + leagues.map(l => `<option value="${l}" ${btLeague===l?'selected':''}>${l}</option>`).join('');
+    }
     // 运行回测比对
     const results = filtered.map(m => {
         const actual = m.homeGoals > m.awayGoals ? '胜' : m.homeGoals < m.awayGoals ? '负' : '平';
