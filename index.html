@@ -842,6 +842,10 @@
     <div id="liveMatches"></div>
     <div class="section-title">📅 即将开赛 <span class="upcoming-count" id="upcomingCount">0</span></div>
     <div id="upcomingMatches"></div>
+    <div style="text-align:center;padding:16px;font-size:.65rem;color:var(--sub);opacity:.7;line-height:1.8">
+        ⚠️ 本工具仅供中国体育彩票竞彩数据展示与AI分析参考<br>不构成任何投注建议 · 严禁未满18岁用户使用 · 理性购彩量力而行<br>
+        <a onclick="showPolicy('terms')" style="color:var(--gold);cursor:pointer">用户协议</a> · <a onclick="showPolicy('privacy')" style="color:var(--gold);cursor:pointer">隐私政策</a>
+    </div>
 </div>
 
 <!-- ==================== 详情页 ==================== -->
@@ -887,7 +891,7 @@
     <div class="update-timestamp" id="updateTimestamp"></div>
     <div class="detail-bottom-bar" id="detailBottomBar">
         <button class="btn-fav" id="btnFav" onclick="toggleFav()">🤍 收藏</button>
-        <button class="btn-bet-detail" id="btnBetDetail" onclick="toggleBetFromDetail()">+ 投注单</button>
+        <button class="btn-bet-detail" id="btnBetDetail" onclick="toggleBetFromDetail()">+ 模拟</button>
         <button class="follow-btn" id="btnFollow" onclick="toggleFollowTeam()">🔔 关注</button>
         <button class="btn-sim" id="btnSimDetail" onclick="simulateCurrentMatch()">🎮 模拟</button>
     </div>
@@ -1080,7 +1084,7 @@
                 <input type="checkbox" id="chkAge" onchange="checkDisclaimer()" style="accent-color:var(--red);transform:scale(1.1)"> 我已年满 <strong>18</strong> 周岁
             </label>
             <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--sub);cursor:pointer;padding:6px 0" for="chkAgree">
-                <input type="checkbox" id="chkAgree" onchange="checkDisclaimer()" style="accent-color:var(--red);transform:scale(1.1)"> 我已阅读并同意《用户协议》和《隐私政策》
+                <input type="checkbox" id="chkAgree" onchange="checkDisclaimer()" style="accent-color:var(--red);transform:scale(1.1)"> 我已阅读并同意<a onclick="event.stopPropagation();showPolicy('terms')" style="color:var(--gold);text-decoration:underline;cursor:pointer">《用户协议》</a>和<a onclick="event.stopPropagation();showPolicy('privacy')" style="color:var(--gold);text-decoration:underline;cursor:pointer">《隐私政策》</a>
             </label>
         </div>
         <div class="modal-buttons">
@@ -2690,7 +2694,7 @@ function updateDetailBottomBar(m){
     favBtn.innerHTML=isFav?'❤️ 已收藏':'🤍 收藏';
     favBtn.classList.toggle('active',isFav);
     const isBet=betSlip.some(b=>b.matchId===m.id);
-    betBtn.textContent=isBet?'✓ 已投注':'+ 投注单';
+    betBtn.textContent=isBet?'✓ 已投注':'+ 模拟';
     betBtn.classList.toggle('added',isBet);
     const isLive=m.status==='live';
     simBtn.textContent=isLive?'🎮 实时模拟':'🎮 模拟本场';
@@ -4633,6 +4637,20 @@ function checkDisclaimer() {
 function acceptDisclaimer() {
     localStorage.setItem('fbs-disclaimer-v2', 'true');
     const m = $('#disclaimerOverlay'); if (m) m.classList.remove('show');
+}
+function showPolicy(type) {
+    const modal = $('#logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    if (type === 'terms') {
+        modal.querySelector('.modal-title').textContent = '📄 用户协议';
+        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:left;font-size:.82rem;line-height:1.8;max-height:400px;overflow-y:auto"><p><strong>1. 服务说明</strong></p><p>本工具为足球赛事数据展示与AI分析工具，仅供中国体育彩票竞彩参考使用。</p><p><strong>2. 免责声明</strong></p><p>所有AI预测结果基于历史数据和算法模型，不构成任何投注建议。用户据此操作风险自担。</p><p><strong>3. 年龄限制</strong></p><p>严禁未满18周岁用户使用本工具的任何功能。</p><p><strong>4. 理性购彩</strong></p><p>请理性对待体育彩票，量力而行，切勿沉迷。</p><p><strong>5. 数据来源</strong></p><p>赛事数据来源于公开信息，可能存在延迟或误差。</p></div>`;
+    } else {
+        modal.querySelector('.modal-title').textContent = '🔒 隐私政策';
+        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:left;font-size:.82rem;line-height:1.8;max-height:400px;overflow-y:auto"><p><strong>1. 信息收集</strong></p><p>本工具仅在浏览器本地存储用户偏好设置（主题、语言、关注球队），不上传任何个人信息至服务器。</p><p><strong>2. 数据存储</strong></p><p>所有数据存储在您设备的localStorage中，清除浏览器数据即删除。</p><p><strong>3. 第三方服务</strong></p><p>AI接口调用时仅传输比赛数据文本，不包含个人身份信息。</p><p><strong>4. 免责</strong></p><p>本工具为纯前端应用，无后端服务器，不收集或出售任何用户数据。</p></div>`;
+    }
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
 }
 
 // ======================== P3 PWA 安装 ========================
