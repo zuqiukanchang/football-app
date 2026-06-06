@@ -5814,8 +5814,8 @@ function addAuditLog(action) { aiConfig.auditLog.unshift({action,time:Date.now()
 function renderAdminPanel() {
     const container = document.getElementById('adminContent'); if (!container) return;
     const report = getAIEvolutionReport();
-    const tabs = ['params','evolution','monitor','security'];
-    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全'};
+    const tabs = ['params','evolution','monitor','security','infosec'];
+    const tabNames = {params:'🤖 参数配置',evolution:'🧬 进化控制',monitor:'📊 监控日志',security:'🛡 数据安全',infosec:'🏰 安全架构'};
     let html = `<div style="padding:12px 16px">
         <div style="background:linear-gradient(135deg,#3D1A1A,#5C2020);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--gold)">
             <div style="color:var(--gold);font-weight:700;font-size:.88rem">🔑 AI系统设置 · ${getUserRole()==='super_admin'?'总账户':'普通用户'}</div>
@@ -5834,6 +5834,14 @@ function renderAdminPanel() {
         html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📊 实时准确率</div>${['sijiliang','ruicai','zhiqiong'].map(p=>{const r=report[p]||{};return`<div class="stat-row"><span>${r.name||p}</span><span style="color:var(--gold)">${r.rate||0}%</span><span style="font-size:.7rem;color:var(--sub)">${r.trend||'--'} ${r.total||0}次</span></div>`;}).join('')}</div>
         <canvas id="adminMonitorChart" width="360" height="120" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:10px"></canvas>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🚨 异常告警</div><div style="font-size:.73rem;color:var(--sub)">${(report.sijiliang?.rate||0)<60?'⚠️ 稳基准度下降，需关注':report.ruicai?.rate||0<55?'⚠️ 睿财准确率偏低':report.zhiqiong?.rate||0<65?'⚠️ 智穹需调整参数':'✅ 所有AI运行正常'}</div></div>`;
+    } else if (adminTab === 'infosec') {
+        const sec = getTransportSecurityStatus();
+        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🏰 支付密码全链路安全架构</div><div style="font-size:.73rem;color:var(--sub);line-height:1.8">
+        <p><strong style="color:var(--red-bright)">🔴 第一道防线：前端防护</strong></p><p>纯数字限制 · 禁止复制粘贴 · 隐藏输入(type=password) · 自定义虚拟键盘 · 3次锁定15分钟 · 3分钟超时 · 自动清空 · 控制台保护 · 防截图</p>
+        <p><strong style="color:var(--orange)">🟠 第二道防线：传输安全</strong></p><p>HTTPS TLS 1.3 · HSTS强制 · SHA-256哈希(客户端) · 时间戳+随机盐防重放 · HMAC请求签名 · 一次性令牌 · 密码传输前已加密</p>
+        <p><strong style="color:var(--gold)">🟡 第三道防线：后端存储</strong></p><p>bcrypt/Argon2id慢哈希 · 唯一随机盐(crypto.randomBytes) · 高迭代次数(cost≥12) · 禁止明文存储 · 哈希不可逆 · 数据库加密存储 · 定期审计</p>
+        <p><strong style="color:var(--green-bright)">🟢 验证风控</strong></p><p>连续错误锁定 · 异地登录检测 · 大额交易二次验证 · IP频率限制 · 异常行为告警</p></div></div>
+        <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📋 当前传输安全状态</div><div style="font-size:.73rem;color:var(--sub);line-height:1.8">${Object.entries(sec).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span>${k}</span><span style="color:var(--green-bright);font-size:.7rem">${v}</span></div>`).join('')}</div></div>`;
     } else if (adminTab === 'security') {
         html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">💾 模型备份</div><button class="sim-btn" style="margin:4px 0;width:100%;font-size:.78rem" onclick="markBackupDone();exportAIModel()">📤 导出AI参数（JSON）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.78rem" onclick="importAIModel()">📥 导入AI参数恢复</button><div style="font-size:.68rem;color:var(--gold-dim);margin-top:4px">💡 建议每7天备份一次</div></div>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔐 安全设置</div><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="setAdminPin()">🔑 设置二次验证PIN（${adminPin?'已设置':'未设置'}）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="setIPWhitelist()">🌐 IP白名单（${localStorage.getItem('fbs-ip-whitelist')||'无限制'}）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="resetAIModel()">🔄 重置AI模型</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="rollbackModel()">⏪ 回滚默认参数（需PIN）</button></div>
