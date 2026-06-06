@@ -1120,6 +1120,15 @@
 </div>
 
 <!-- ==================== 消息中心 ==================== -->
+<!-- ==================== AI系统设置（管理员） ==================== -->
+<div id="page-admin" class="page">
+    <div class="sticky-nav">
+        <div class="back-link" onclick="navigateTo('home')">← 返回首页</div>
+        <div class="app-header"><span class="app-title">⚙️ AI系统设置</span></div>
+    </div>
+    <div id="adminContent"></div>
+</div>
+
 <div id="page-messages" class="page">
     <div class="sticky-nav">
         <div class="back-link" onclick="navigateTo('home')">← 返回首页</div>
@@ -2273,6 +2282,10 @@ function updateBetBadge(){const b=$('#betBadge');b.textContent=betSlip.length;b.
 function loadFavorites(){try{const r=localStorage.getItem('fbs-favs-v3');return r?JSON.parse(r):[]}catch{return[]}}
 function saveFavorites(){localStorage.setItem('fbs-favs-v3',JSON.stringify(favorites))}
 function loadUser(){try{const r=localStorage.getItem('fbs-user-v3');return r?JSON.parse(r):null}catch{return null}}
+function getUserRole(){const u=loadUser();return u?.role||'normal_user'}
+function isAdmin(){return getUserRole()==='super_admin'}
+// 权限守卫
+function guardAdmin(){if(!isAdmin()){showToast('🔒 无权限访问，仅管理员可操作');navigateTo('home');return false}return true}
 
 // ======================== 工具函数 ========================
 function $(s){return document.querySelector(s)}
@@ -2309,6 +2322,7 @@ function navigateTo(page,data){
         else if(page==='login')renderLogin()
         else if(page==='team'){if(data)renderTeam(data);else{const m=matchData.find(x=>followedTeams.includes(x.home));if(m)renderTeam(m.home);else navigateTo('home')}}
         else if(page==='messages'){renderMessages()}
+        else if(page==='admin'){if(guardAdmin())renderAdminPanel()}
         // 恢复目标页面滚动位置
         const savedY = scrollPositions[page] || 0;
         window.scrollTo({top:savedY,behavior:'smooth'});
@@ -2320,7 +2334,7 @@ function restoreFromHash() {
     if (!hash || hash === 'home') return;
     const [page, ...rest] = hash.split('/');
     const data = rest.join('/');
-    if (['home','detail','predict','simulator','profile','login','team','messages'].includes(page)) {
+    if (['home','detail','predict','simulator','profile','login','team','messages','admin'].includes(page)) {
         navigateTo(page, data || undefined);
     }
 }
@@ -3611,6 +3625,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showHelpCenter()"><div class="menu-left"><span class="menu-icon">❓</span><span class="menu-text">帮助与反馈</span></div><span class="menu-arrow">›</span></div>
+                ${isAdmin()?`<div class="menu-item" onclick="navigateTo('admin')"><div class="menu-left"><span class="menu-icon">⚙️</span><span class="menu-text">AI系统设置</span></div><span style="font-size:.65rem;color:var(--gold)">管理员</span></div>`:''}
             </div>
             <div class="menu-section">
                 <div class="menu-item logout-item" onclick="showLogoutModal()"><div class="menu-left"><span class="menu-icon">🚪</span><span class="menu-text">退出登录</span></div><span class="menu-arrow">›</span></div>
@@ -4093,9 +4108,11 @@ function handleLoginSubmit() {
     else localStorage.removeItem('fbs-remembered-phone');
 
     const validCodes = ['VIP', 'VIP888', 'FBS2024', 'FOOTBALL'];
-    let level = validCodes.includes(invite) ? (invite === 'VIP888' ? '至尊分析师' : '金牌分析师') : (loginMethod === 'password' ? '资深球迷' : '普通球迷');
+    const adminCodes = ['ADMIN2026', 'SUPER888', 'AKAGI-ROOT'];
+    let level = adminCodes.includes(invite) ? '系统管理员' : validCodes.includes(invite) ? (invite === 'VIP888' ? '至尊分析师' : '金牌分析师') : (loginMethod === 'password' ? '资深球迷' : '普通球迷');
+    const role = adminCodes.includes(invite) ? 'super_admin' : 'normal_user';
     const maskedPhone = phone.slice(0, 3) + '****' + phone.slice(7);
-    const user = { phone: maskedPhone, level, loginTime: Date.now(), loginMethod };
+    const user = { phone: maskedPhone, level, role, loginTime: Date.now(), loginMethod };
     localStorage.setItem('fbs-user-v3', JSON.stringify(user));
     showToast('✅ ' + level + ' 登录成功！');
     setTimeout(() => navigateTo('profile'), 500);
@@ -4105,7 +4122,7 @@ function socialQuickLogin(platform) {
     const names = { wechat: '微信', alipay: '支付宝', apple: 'Apple' };
     showToast('🔐 正在拉起' + (names[platform] || platform) + '登录...');
     setTimeout(() => {
-        const user = { phone: platform + '_user', level: '社交登录用户', loginTime: Date.now(), loginMethod: platform };
+        const user = { phone: platform + '_user', level: '社交登录用户', role: 'normal_user', loginTime: Date.now(), loginMethod: platform };
         localStorage.setItem('fbs-user-v3', JSON.stringify(user));
         showToast('✅ ' + (names[platform] || platform) + '登录成功！');
         setTimeout(() => navigateTo('profile'), 500);
@@ -5221,6 +5238,34 @@ function submitEnhancedFeedback() {
     showToast('✅ 反馈已提交，我们会在24小时内回复');
     closeLogoutModal();
 }
+// 管理员面板
+function renderAdminPanel() {
+    const container = document.getElementById('adminContent'); if (!container) return;
+    const report = getAIEvolutionReport();
+    container.innerHTML = `
+        <div style="padding:12px 16px">
+            <div style="background:linear-gradient(135deg,#3D1A1A,#5C2020);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--gold)">
+                <div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔑 管理员面板 · ${getUserRole()==='super_admin'?'总账户':'普通用户'}</div>
+                <p style="font-size:.73rem;color:var(--sub)">AI模型参数配置 · 训练日志 · 用户管理</p>
+            </div>
+            <div class="section-title" style="padding:0 0 8px">🤖 AI模型参数</div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px">
+                ${Object.entries(DynamicPredictEngine.WEIGHTS).map(([k,v])=>`<div class="stat-row" style="padding:6px 0"><span>${k}</span><input type="range" min="0" max="30" value="${Math.round(v*100)}" style="flex:1;margin:0 10px;accent-color:var(--gold)"><span style="color:var(--gold);min-width:32px;text-align:right">${Math.round(v*100)}%</span></div>`).join('')}
+            </div>
+            <div class="section-title" style="padding:0 0 8px">📊 AI进化报告</div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px">
+                ${['sijiliang','ruicai','zhiqiong'].map(p=>{const r=report[p]||{};return`<div class="stat-row"><span>${r.name||p}</span><span style="color:var(--gold)">${r.rate||0}%</span><span style="font-size:.7rem;color:var(--sub)">${r.trend||'--'} ${r.total||0}次</span></div>`;}).join('')}
+                <div class="stat-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px"><span>综合</span><span style="color:var(--gold)">${report.overall?.rate||0}%</span><span style="font-size:.7rem;color:var(--sub)">${report.overall?.total||0}次</span></div>
+            </div>
+            <div class="section-title" style="padding:0 0 8px">🛡 安全管理</div>
+            <div class="card" style="background:var(--card);border-radius:12px;padding:14px">
+                <button class="sim-btn secondary" style="font-size:.75rem;margin:4px 0;width:100%" onclick="resetAIModel()">🔄 重置AI模型（参数回默认）</button>
+                <button class="sim-btn secondary" style="font-size:.75rem;margin:4px 0;width:100%" onclick="clearAILogs()">🗑 清除训练日志</button>
+            </div>
+        </div>`;
+}
+function resetAIModel() { if(!confirm('确认重置AI模型参数？'))return; localStorage.removeItem('fbs-adaptive-weights'); aiEvolutionLog=[]; saveAIEvolution(); showToast('✅ AI模型已重置'); renderAdminPanel(); }
+function clearAILogs() { if(!confirm('确认清除所有训练日志？'))return; aiEvolutionLog=[]; saveAIEvolution(); showToast('✅ 日志已清除'); renderAdminPanel(); }
 // 隐私与安全仪表盘
 function showPrivacyDashboard() {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
