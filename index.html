@@ -991,6 +991,8 @@
         <div class="calc-tab-btn" data-tool="leaderboard"><span class="tool-icon">🏆</span>排行榜</div>
         <div class="calc-tab-btn" data-tool="virtualsim"><span class="tool-icon">🔮</span>虚拟推演</div>
         <div class="calc-tab-btn" data-tool="aichat"><span class="tool-icon">💬</span>AI问答</div>
+        <div class="calc-tab-btn" data-tool="community"><span class="tool-icon">👥</span>社区</div>
+        <div class="calc-tab-btn" data-tool="experts"><span class="tool-icon">📝</span>专家</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
@@ -1141,6 +1143,16 @@
     <div class="calc-panel" id="panel-tool-aichat">
         <div class="section-title" style="padding:12px 8px 4px">💬 AI智能问答</div>
         <div id="aichatContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 社区面板 -->
+    <div class="calc-panel" id="panel-tool-community">
+        <div class="section-title" style="padding:12px 8px 4px">👥 预测社区</div>
+        <div id="communityContent" style="padding:0 8px"></div>
+    </div>
+    <!-- 专家专栏面板 -->
+    <div class="calc-panel" id="panel-tool-experts">
+        <div class="section-title" style="padding:12px 8px 4px">📝 专家专栏</div>
+        <div id="expertsContent" style="padding:0 8px"></div>
     </div>
 </div>
 
@@ -3474,6 +3486,8 @@ function renderSimulatorTeams(){
     else if (currentTool === 'leaderboard') initLeaderboard();
     else if (currentTool === 'virtualsim') initVirtualSim();
     else if (currentTool === 'aichat') initAIChat();
+    else if (currentTool === 'community') initCommunity();
+    else if (currentTool === 'experts') initExperts();
 }
 
 function initSandbox() {
@@ -3959,6 +3973,26 @@ function runVirtualSim() {
 // AI问答
 const AI_QA = {'xG':'近5场场均xG为1.82。xGA为0.95，防守效率联赛第2。','凯利':'凯利公式f=(bp-q)/b。b=赔率，p=胜率。建议凯利<0.5为安全区间。','稳基':'稳基侧重基本面分析（历史数据70%+主客场15%），睿财侧重盘赔量化，智穹融合两者。','准确率':'1.关注战意分析 2.结合冷热指数 3.参考伤停影响 4.凯利值评估 5.串关2-3场内'};
 function initAIChat() { renderAIChat(); }
+// 社区
+function initCommunity() { renderCommunity(); }
+function renderCommunity() {
+    const container = document.getElementById('communityContent'); if (!container) return;
+    const posts = [{user:'足球大师',content:'今晚曼联vs利物浦，稳基推荐主胜，睿财也看好，智穹给了4星。三AI一致，值得关注！',likes:128,comments:35},{user:'数据帝',content:'xG数据显示曼联近5场场均1.82，利物浦客场xGA偏高。结合冷热指数，主胜概率更大。',likes:96,comments:28},{user:'盘赔专家',content:'12机构中有8家下调主胜赔率，威廉希尔降了0.15。资金流向明显偏向主队。',likes:74,comments:19}];
+    container.innerHTML = posts.map((p,i) => `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-weight:600;color:var(--gold)">${p.user}</span><span style="font-size:.62rem;color:var(--sub)">${i+1}小时前</span></div>
+        <p style="font-size:.75rem;color:var(--text);line-height:1.6">${p.content}</p>
+        <div style="display:flex;gap:16px;margin-top:6px;font-size:.65rem;color:var(--sub)"><span>❤️ ${p.likes}</span><span>💬 ${p.comments}</span><span>↗️ 分享</span></div></div>`).join('') + `<button class="sim-btn" style="font-size:.75rem;width:100%;margin-top:8px" onclick="showToast('✍️ 发帖功能即将上线')">✍️ 发布预测</button>`;
+}
+// 专家专栏
+function initExperts() { renderExperts(); }
+function renderExperts() {
+    const container = document.getElementById('expertsContent'); if (!container) return;
+    const experts = [{name:'张指导',title:'前国脚 · 20年赛事分析经验',articles:[{title:'深度解析：xG体系如何改变足球分析',reads:'2.3万'},{title:'凯利公式实战应用指南',reads:'1.8万'}]},{name:'李分析师',title:'体育数据科学家',articles:[{title:'英超第30轮前瞻：三AI一致看好哪些比赛',reads:'1.5万'},{title:'冷热指数实战：如何识别市场陷阱',reads:'1.2万'}]}];
+    container.innerHTML = experts.map(e => `<div class="card" style="background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><div style="width:40px;height:40px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;color:#1A0A0A;font-weight:700">${e.name[0]}</div><div><div style="font-weight:600;color:var(--gold)">${e.name}</div><div style="font-size:.62rem;color:var(--sub)">${e.title}</div></div></div>
+        ${e.articles.map(a => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.73rem;cursor:pointer" onclick="showToast('📖 文章详情开发中')"><span>📄 ${a.title}</span><span style="float:right;color:var(--sub);font-size:.62rem">${a.reads}阅读</span></div>`).join('')}
+        <button class="sort-btn" style="width:100%;justify-content:center;font-size:.65rem;margin-top:4px" onclick="showToast('🔔 已订阅'+'${e.name}')">🔔 订阅专家</button></div>`).join('');
+}
 function renderAIChat() {
     const container = document.getElementById('aichatContent'); if (!container) return;
     const qs = Object.keys(AI_QA);
