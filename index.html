@@ -4460,6 +4460,12 @@ function renderWallet() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <button class="sim-btn" style="font-size:.78rem" onclick="walletTab='topup';renderWallet()">📥 充值</button>
             <button class="sim-btn secondary" style="font-size:.78rem" onclick="walletTab='withdraw';renderWallet()">📤 提现</button></div>
+            <div style="background:var(--card);border-radius:10px;padding:10px;margin-bottom:10px;font-size:.65rem;color:var(--sub);text-align:center;line-height:1.8">
+            <div style="color:var(--gold);font-weight:700;margin-bottom:4px">💳 资金流向说明</div>
+            📥 <strong>充值</strong>：微信/支付宝 → 总对公账户 → 系统记账(用户余额+)
+            <br>💳 <strong>消费</strong>：系统内部划转(用户余额-) → 对公账户负债减少
+            <br>📤 <strong>提现</strong>：对公账户 → 微信/支付宝/银行卡 → 系统记账(用户余额-)
+            <br>🏦 <strong>存管</strong>：对公账户独立记账·负债管理·专款专用</div>
             <div style="font-size:.78rem;color:var(--gold);margin-bottom:6px">📋 最近交易</div>
             ${walletTransactions.slice(0, 3).map(t => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.75rem"><span>${t.type}</span><span style="color:${t.type==='充值'?'var(--green-bright)':t.type==='提现'?'var(--red-bright)':'var(--sub)'}">${t.type==='充值'?'+':'-'}¥${t.amount.toFixed(2)}</span><span style="color:var(--sub);font-size:.68rem">${new Date(t.time).toLocaleDateString()}</span></div>`).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无交易记录</div>'}`;
     } else if (walletTab === 'topup') {
@@ -5960,6 +5966,7 @@ function renderAdminPanel() {
             <p><strong style="color:var(--green-bright)">🎯 专款专用</strong>：仅用于用户消费和提现，禁止挪用于运营/投资</p>
             <p><strong style="color:var(--red-bright)">🚫 严禁挪用</strong>：违者承担法律责任，定期接受央行监管审查</p>
             <div style="background:var(--bg);border-radius:8px;padding:10px;margin:8px 0"><span>总预存款 ¥${totalBalance.toFixed(2)}</span><span style="float:right">风险准备金 ¥${reserve.toFixed(2)} (5%)</span></div>
+            <div style="font-size:.7rem;line-height:1.6"><strong>资金流转规则：</strong><br>📥 充值入账：第三方支付→对公账户→用户余额+<br>💳 消费出账：用户余额-（系统内部划转）<br>📤 提现出账：对公账户→用户账户→用户余额-</div>
             <p>📊 每月5日前向用户披露存管报告 · 年度第三方审计</p></div></div>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🏰 支付密码全链路安全架构</div><div style="font-size:.73rem;color:var(--sub);line-height:1.8">
         <p><strong style="color:var(--red-bright)">🔴 第一道防线：前端防护</strong></p><p>纯数字限制 · 禁止复制粘贴 · 隐藏输入(type=password) · 自定义虚拟键盘 · 3次锁定15分钟 · 3分钟超时 · 自动清空 · 控制台保护 · 防截图</p>
