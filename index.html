@@ -28,7 +28,16 @@
     <title>足球看场 · App-Ready</title>
     <!-- 资源预加载提示 -->
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="dns-prefetch" href="//raw.githubusercontent.com">
     <link rel="preconnect" href="//cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="//fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="//fonts.gstatic.com" crossorigin>
+    <!-- 关键资源预加载 -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" as="style" crossorigin>
+    <!-- 缓存策略 -->
+    <meta http-equiv="Cache-Control" content="public, max-age=86400, stale-while-revalidate=604800">
     <!-- 浏览器缓存策略 -->
     <meta http-equiv="Cache-Control" content="public, max-age=3600, must-revalidate">
     <meta http-equiv="Expires" content="3600">
@@ -4915,10 +4924,17 @@ function initPWA() {
     window.addEventListener('appinstalled', () => { pwaInstalled = true; deferredPrompt = null; hideInstallButton(); showToast('✅ APP已安装到桌面！'); });
     // 简单SW（https/localhost下生效）
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-        const swCode = `const CACHE='akagi-v2';self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/football-app/','/football-app/index.html'])).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>clients.claim()));});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{if(resp.ok){const clone=resp.clone();caches.open(CACHE).then(c=>c.put(e.request,clone));}return resp;}).catch(()=>caches.match('/football-app/'))));});self.addEventListener('message',e=>{if(e.data==='skipWaiting')self.skipWaiting();});`;
+        const swCode = `const CACHE='akagi-v3';const ASSETS=['/football-app/','/football-app/index.html'];self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>clients.claim()));});self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.open(CACHE).then(cache=>cache.match(e.request).then(cached=>{const fetched=fetch(e.request).then(resp=>{if(resp.ok&&resp.status===200){cache.put(e.request,resp.clone());}return resp;});return cached||fetched;})));});self.addEventListener('message',e=>{if(e.data==='skipWaiting')self.skipWaiting();});`;
         const swUrl = URL.createObjectURL(new Blob([swCode],{type:'application/javascript'}));
         navigator.serviceWorker.register(swUrl,{scope:'/football-app/'}).catch(()=>{});
     }
+}
+// 性能监控
+function logPerf() {
+    if (!window.performance || !performance.timing) return;
+    const t = performance.timing;
+    const loadTime = t.loadEventEnd - t.navigationStart;
+    if (loadTime > 0) console.log('[Perf] 页面加载: ' + loadTime + 'ms');
 }
 function showInstallButton() { const btn = document.getElementById('installBtn'); if (btn && !pwaInstalled) btn.style.display = ''; }
 function hideInstallButton() { const btn = document.getElementById('installBtn'); if (btn) btn.style.display = 'none'; }
@@ -5087,7 +5103,7 @@ function showSyncInfo() {
 }
 
 document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();startAutoRefresh();
-    setTimeout(showOnboarding, 800); // 免责弹窗之后再显示引导
+    setTimeout(showOnboarding, 800);window.addEventListener('load',logPerf); // 免责弹窗之后再显示引导
 });
 </script>
 </body>
