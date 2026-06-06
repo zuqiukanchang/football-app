@@ -3491,6 +3491,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
+                <div class="menu-item" onclick="exportUserData()"><div class="menu-left"><span class="menu-icon">💾</span><span class="menu-text">备份数据</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
@@ -3607,6 +3608,40 @@ function showBetHistory(){
     modal.querySelector('.modal-btn-confirm').textContent='关闭';
     modal.querySelector('.modal-btn-confirm').onclick=closeLogoutModal;
     modal.classList.add('show');
+}
+// 数据备份/恢复
+function exportUserData() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('fbs-')) data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = '赤金足坛_备份_' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('✅ 数据已导出，请妥善保存');
+}
+function importUserData() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const data = JSON.parse(reader.result);
+                let count = 0;
+                Object.entries(data).forEach(([key, val]) => {
+                    if (key.startsWith('fbs-')) { localStorage.setItem(key, val); count++; }
+                });
+                showToast('✅ 已恢复 ' + count + ' 条数据，刷新后生效');
+                setTimeout(() => location.reload(), 1500);
+            } catch (e) { showToast('❌ 文件格式错误'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 }
 function showAISettings() {
     const modal = $('#logoutModal'); if (!modal) return;
