@@ -3600,7 +3600,7 @@ function renderProfile(){
                 <div class="menu-item" onclick="navigateTo('simulator');currentTool='combo';renderSimulatorTeams()"><div class="menu-left"><span class="menu-icon">🔗</span><span class="menu-text">串关分析</span></div><span class="menu-arrow">›</span></div>
             </div>
             <div class="menu-section">
-                <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showPrivacyDashboard()"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
                 <div class="menu-item" onclick="showPremiumModal()"><div class="menu-left"><span class="menu-icon">👑</span><span class="menu-text">${isPremium?'至尊会员':'升级会员'}</span></div><span style="font-size:.65rem;color:${isPremium?'var(--gold)':'var(--sub)'}">${isPremium?'已激活':'免费'}</span></div>
@@ -5151,6 +5151,46 @@ function checkFreeLimit() { const today = new Date().toDateString(); if (freePre
 function incFreeCount() { freePredCount++; freePredDate = new Date().toDateString(); localStorage.setItem('fbs-free-count', freePredCount); localStorage.setItem('fbs-free-date', freePredDate); }
 function requirePremium(feature) { if (!isPremium) { showToast('👑 该功能需会员，每日限免' + (10 - freePredCount) + '次'); return false; } return true; }
 function showUpgradePrompt(feature) { const modal = document.getElementById('logoutModal'); if (!modal) return; modal.querySelector('.modal-btn-cancel').style.display = ''; modal.querySelector('.modal-btn-cancel').textContent = '稍后'; modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal; modal.querySelector('.modal-title').textContent = '👑 升级会员解锁'; modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem;margin-bottom:8px">🔒</div><p style="color:var(--gold)">${feature} 为会员专属功能</p><p style="font-size:.78rem;color:var(--sub);margin:8px 0">免费用户每日限10次 · 会员无限制</p></div>`; modal.querySelector('.modal-btn-confirm').textContent = '立即升级'; modal.querySelector('.modal-btn-confirm').onclick = () => { closeLogoutModal(); showPremiumModal(); }; modal.classList.add('show'); }
+// 隐私与安全仪表盘
+function showPrivacyDashboard() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    const dataSize = new Blob([JSON.stringify(localStorage)]).size;
+    const dataKeys = Object.keys(localStorage).filter(k => k.startsWith('fbs-'));
+    modal.querySelector('.modal-title').textContent = '🛡️ 隐私与安全';
+    modal.querySelector('.modal-text').innerHTML = `
+        <div style="text-align:left;font-size:.78rem;line-height:1.7;max-height:400px;overflow-y:auto">
+        <p style="color:var(--gold);font-weight:700">📊 已收集信息清单</p>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin:6px 0;font-size:.72rem">
+        ${dataKeys.length ? dataKeys.map(k => `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)"><span>${k.replace('fbs-','')}</span><span style="color:var(--sub)">${(localStorage.getItem(k)?.length||0)}字</span></div>`).join('') : '<span style="color:var(--sub)">无本地数据</span>'}
+        </div>
+        <p style="font-size:.68rem;color:var(--sub)">💡 全部数据存储在浏览器本地，不上传服务器。总计约${Math.round(dataSize/1024)}KB。</p>
+        <p style="color:var(--gold);font-weight:700;margin-top:10px">⚙️ 隐私设置</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>🔔 赛事提醒</span>
+            <label class="toggle-switch"><input type="checkbox" ${subscribedMatches.length?'checked':''} onchange="this.checked?showToast('赛事提醒已开启'):(subscribedMatches=[],localStorage.setItem('fbs-sub-matches','[]'),showToast('已关闭'))"><span class="toggle-slider"></span></label>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>🤖 个性化推荐</span>
+            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast(this.checked?'推荐已开启':'推荐已关闭')"><span class="toggle-slider"></span></label>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span>🍪 分析Cookie</span>
+            <label class="toggle-switch"><input type="checkbox" disabled><span class="toggle-slider" style="opacity:.5"></span></label>
+            <span style="font-size:.65rem;color:var(--sub)">未使用</span>
+        </div>
+        <p style="color:var(--gold);font-weight:700;margin-top:10px">📋 数据操作</p>
+        <button class="sim-btn" style="margin:4px 0;font-size:.75rem" onclick="exportUserData();closeLogoutModal()">📤 导出个人数据 (JSON)</button>
+        <button class="sim-btn secondary" style="margin:4px 0;font-size:.75rem" onclick="if(confirm('确定删除所有本地数据？此操作不可撤销。')){localStorage.clear();showToast('已删除，刷新后生效');setTimeout(()=>location.reload(),1500)};closeLogoutModal()">🗑 删除所有数据</button>
+        <p style="color:var(--gold);font-weight:700;margin-top:10px">📄 合规文档</p>
+        <div style="display:flex;gap:8px">
+            <button class="sort-btn" style="flex:1;justify-content:center;font-size:.72rem" onclick="showPolicy('terms');closeLogoutModal()">用户协议</button>
+            <button class="sort-btn" style="flex:1;justify-content:center;font-size:.72rem" onclick="showPolicy('privacy');closeLogoutModal()">隐私政策</button>
+        </div></div>`;
+    modal.querySelector('.modal-btn-cancel').style.display = 'none';
+    modal.querySelector('.modal-btn-confirm').textContent = '关闭';
+    modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
+    modal.classList.add('show');
+}
 function showPremiumModal() {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
     modal.querySelector('.modal-btn-cancel').style.display = '';
