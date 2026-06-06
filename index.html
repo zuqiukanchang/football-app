@@ -1105,6 +1105,30 @@
 </div>
 
 <!-- 免责弹窗（全局） -->
+<!-- 新手引导 -->
+<div class="modal-overlay" id="onboardingOverlay">
+    <div class="modal-card" style="max-width:360px">
+        <div id="onboardStep1" style="text-align:center">
+            <div style="font-size:3rem;margin-bottom:8px">🐉</div>
+            <div class="modal-title">欢迎来到赤金足坛</div>
+            <div class="modal-text">AI驱动的竞彩赛事分析平台<br>8因子模型 · 实时数据 · 智能预测</div>
+            <button class="modal-btn-confirm" style="width:100%" onclick="nextOnboard(2)">下一步 →</button>
+        </div>
+        <div id="onboardStep2" style="text-align:center;display:none">
+            <div style="font-size:3rem;margin-bottom:8px">🤖</div>
+            <div class="modal-title">三大AI为你护航</div>
+            <div class="modal-text">稳基·基本面分析<br>睿财·赔率量化<br>智穹·综合终审<br>点击比赛卡片查看详细预测</div>
+            <button class="modal-btn-confirm" style="width:100%" onclick="nextOnboard(3)">下一步 →</button>
+        </div>
+        <div id="onboardStep3" style="text-align:center;display:none">
+            <div style="font-size:3rem;margin-bottom:8px">🔧</div>
+            <div class="modal-title">工具中心等你探索</div>
+            <div class="modal-text">模拟器 · 凯利实验室 · 因子拆解<br>串关分析 · 回测系统 · 射手榜<br>关注球队，开启你的AI足球之旅</div>
+            <button class="modal-btn-confirm" style="width:100%" onclick="finishOnboard()">🚀 开始使用</button>
+        </div>
+    </div>
+</div>
+<!-- 免责弹窗 -->
 <div class="modal-overlay" id="disclaimerOverlay">
     <div class="modal-card">
         <div class="modal-title">⚠️ 使用须知</div>
@@ -3548,7 +3572,10 @@ function renderProfile(){
                 <div class="menu-item" onclick="showToast('设备管理开发中')"><div class="menu-left"><span class="menu-icon">📱</span><span class="menu-text">设备管理</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showThemePicker()"><div class="menu-left"><span class="menu-icon">🎨</span><span class="menu-text">主题设置</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="toggleLang()"><div class="menu-left"><span class="menu-icon">🌐</span><span class="menu-text">语言 / Language</span></div><span style="font-size:.65rem;color:var(--sub)">${currentLang==='zh'?'中文':'English'}</span></div>
+                <div class="menu-item" onclick="showPremiumModal()"><div class="menu-left"><span class="menu-icon">👑</span><span class="menu-text">${isPremium?'至尊会员':'升级会员'}</span></div><span style="font-size:.65rem;color:${isPremium?'var(--gold)':'var(--sub)'}">${isPremium?'已激活':'免费'}</span></div>
                 <div class="menu-item" onclick="exportUserData()"><div class="menu-left"><span class="menu-icon">💾</span><span class="menu-text">备份数据</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showSyncInfo()"><div class="menu-left"><span class="menu-icon">☁️</span><span class="menu-text">数据同步</span></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="showFeedbackForm()"><div class="menu-left"><span class="menu-icon">💬</span><span class="menu-text">意见反馈</span></div><span class="menu-arrow">›</span></div>
                 <div class="menu-item" onclick="showAISettings()"><div class="menu-left"><span class="menu-icon">🤖</span><span class="menu-text">AI设置</span></div><span style="font-size:.65rem;color:${aiApiEnabled?'var(--green-bright)':'var(--sub)'}">${aiApiEnabled?'已启用':'未启用'}</span></div>
                 <div class="menu-item" onclick="toggleSound()"><div class="menu-left"><span class="menu-icon">${soundEnabled ? '🔊' : '🔇'}</span><span class="menu-text">声音设置</span></div><span style="font-size:.65rem;color:var(--sub)">${soundEnabled ? '已开启' : '已关闭'}</span></div>
                 <div class="menu-item" onclick="showToast('隐私设置开发中')"><div class="menu-left"><span class="menu-icon">🛡️</span><span class="menu-text">隐私与安全</span></div><span class="menu-arrow">›</span></div>
@@ -4982,7 +5009,81 @@ window.addEventListener('error', function(e) {
     }
 }, true);
 
-document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();startAutoRefresh();});
+// ======================== 新手引导 ========================
+function showOnboarding() {
+    if (localStorage.getItem('fbs-onboarded')) return;
+    const m = document.getElementById('onboardingOverlay'); if (m) m.classList.add('show');
+}
+function nextOnboard(step) {
+    document.querySelectorAll('[id^="onboardStep"]').forEach(el => el.style.display = 'none');
+    const s = document.getElementById('onboardStep' + step); if (s) s.style.display = '';
+}
+function finishOnboard() {
+    localStorage.setItem('fbs-onboarded', 'true');
+    const m = document.getElementById('onboardingOverlay'); if (m) m.classList.remove('show');
+    showToast('🎉 欢迎！点击比赛卡片开始体验');
+}
+
+// ======================== 意见反馈 ========================
+let feedbackItems = JSON.parse(localStorage.getItem('fbs-app-feedback') || '[]');
+function showFeedbackForm() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = '';
+    modal.querySelector('.modal-btn-cancel').textContent = '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
+    modal.querySelector('.modal-title').textContent = '💬 意见反馈';
+    modal.querySelector('.modal-text').innerHTML = `
+        <textarea id="feedbackText" placeholder="请描述你的问题或建议..." style="width:100%;height:100px;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;resize:vertical;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        <div style="font-size:.7rem;color:var(--sub);margin-top:6px">💡 反馈保存在本地，可导出备份</div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '提交';
+    modal.querySelector('.modal-btn-confirm').onclick = () => {
+        const text = document.getElementById('feedbackText')?.value?.trim();
+        if (!text) { showToast('请输入反馈内容'); return; }
+        feedbackItems.unshift({ text, time: Date.now() });
+        localStorage.setItem('fbs-app-feedback', JSON.stringify(feedbackItems));
+        closeLogoutModal(); showToast('✅ 感谢反馈！已保存');
+    };
+    modal.classList.add('show');
+}
+
+// ======================== 会员模拟 ========================
+let isPremium = localStorage.getItem('fbs-premium') === 'true';
+const VIP_CODES = ['VIP888', 'PREMIUM2026', 'AKAGI-VIP'];
+function showPremiumModal() {
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = '';
+    modal.querySelector('.modal-btn-cancel').textContent = '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
+    modal.querySelector('.modal-title').textContent = isPremium ? '👑 至尊会员' : '💎 升级会员';
+    modal.querySelector('.modal-text').innerHTML = isPremium ? `
+        <div style="text-align:center;font-size:3rem;margin-bottom:8px">👑</div>
+        <p style="color:var(--gold)">你已是至尊会员，享受以下权益：</p>
+        <div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">
+        ✅ AI深度分析（8因子全量）<br>✅ 凯利投注优化<br>✅ 回测系统无限制<br>✅ 串关推荐无限次<br>✅ 数据导出备份<br>✅ 优先客服响应</div>` : `
+        <div style="text-align:center;font-size:3rem;margin-bottom:8px">💎</div>
+        <p>输入VIP邀请码解锁至尊会员</p>
+        <input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:8px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+        <div style="font-size:.7rem;color:var(--sub)">提示：输入VIP888试试</div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = isPremium ? '退出会员' : '激活';
+    modal.querySelector('.modal-btn-confirm').onclick = () => {
+        if (isPremium) { isPremium = false; localStorage.removeItem('fbs-premium'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
+        else {
+            const code = document.getElementById('vipCodeInput')?.value?.trim()?.toUpperCase();
+            if (VIP_CODES.includes(code)) { isPremium = true; localStorage.setItem('fbs-premium', 'true'); closeLogoutModal(); showToast('👑 至尊会员已激活！'); renderProfile(); }
+            else { showToast('❌ 邀请码无效'); }
+        }
+    };
+    modal.classList.add('show');
+}
+
+// ======================== 数据同步提示 ========================
+function showSyncInfo() {
+    showToast('💡 点击"备份数据"导出JSON → 新设备"恢复数据"导入，完成同步', 3500);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();startAutoRefresh();
+    setTimeout(showOnboarding, 800); // 免责弹窗之后再显示引导
+});
 </script>
 </body>
 </html>
