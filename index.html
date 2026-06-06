@@ -6080,8 +6080,8 @@ function showPremiumModal() {
         modal.querySelector('.modal-btn-confirm').textContent = '激活邀请码';
         modal.querySelector('.modal-btn-confirm').onclick = () => {
             const code = document.getElementById('vipCodeInput')?.value?.trim()?.toUpperCase();
-            if (DIAMOND_CODES.includes(code) || LIFETIME_CODES.includes(code)) { isPremium = true; memberTier = 'diamond'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'diamond'); closeLogoutModal(); showToast('💎 钻石会员已激活！'); renderProfile(); }
-            else if (VIP_CODES.includes(code)) { isPremium = true; memberTier = 'gold'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'gold'); closeLogoutModal(); showToast('👑 黄金会员已激活！'); renderProfile(); }
+            if (DIAMOND_CODES.includes(code) || LIFETIME_CODES.includes(code)) { isPremium = true; memberTier = 'diamond'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'diamond'); setMemberPlan('diamond', LIFETIME_CODES.includes(code)?'lifetime':'year'); closeLogoutModal(); addAuditLog('VIP码激活钻石会员'); showToast('💎 钻石会员已激活！'); renderProfile(); }
+            else if (VIP_CODES.includes(code)) { isPremium = true; memberTier = 'gold'; localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', 'gold'); setMemberPlan('gold', 'year'); closeLogoutModal(); addAuditLog('VIP码激活黄金会员'); showToast('👑 黄金会员已激活！'); renderProfile(); }
             else { showToast('❌ 邀请码无效，请点击上方方案选择或输入有效邀请码'); }
         };
     }
@@ -6090,8 +6090,10 @@ function showPremiumModal() {
 function activateMember(tier, plan) {
     isPremium = true; memberTier = tier;
     localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', tier);
+    setMemberPlan(tier, plan);
     const p = PRICING[tier].plans[plan];
     closeLogoutModal();
+    addAuditLog('激活会员: ' + tier + '/' + plan);
     showToast(`✅ ${p.label}已激活 · ${PRICING[tier].name}（需支付¥${p.price}，当前演示模式）`);
     renderProfile();
 }
