@@ -49,7 +49,7 @@
             font-family:"Inter","Noto Serif SC","STSong","SimSun","Songti SC",serif;
             background:var(--bg);color:var(--text);margin:0 auto;min-height:100vh;
             padding-bottom:calc(var(--nav-height) + var(--safe-bottom) + 8px);
-            line-height:1.5;-webkit-font-smoothing:antialiased;
+            line-height:1.72;-webkit-font-smoothing:antialiased;letter-spacing:.02em;
         }
         .app-container{max-width:480px;margin:0 auto;position:relative}
         .page{display:none;animation:pageIn .28s cubic-bezier(.22,.61,.36,1)}
@@ -132,7 +132,8 @@
         /* 触摸波纹 */
         .match-card .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.08);transform:scale(0);animation:rippleEffect .6s ease-out;pointer-events:none}
         @keyframes rippleEffect{to{transform:scale(4);opacity:0}}
-        .match-card.live{border-left-color:var(--red-bright);box-shadow:inset 4px 0 12px rgba(255,68,68,.08)}
+        .match-card.live{border:2px solid var(--gold);border-left:4px solid var(--red-bright);box-shadow:0 0 24px var(--gold-glow),inset 4px 0 12px rgba(255,68,68,.08);animation:liveGlow 2s ease-in-out infinite}
+        @keyframes liveGlow{0%,100%{box-shadow:0 0 16px var(--gold-glow),inset 4px 0 12px rgba(255,68,68,.08)}50%{box-shadow:0 0 28px var(--gold-glow),inset 4px 0 16px rgba(255,68,68,.15)}}
         .match-card.live::before{content:'';position:absolute;top:10px;right:14px;width:8px;height:8px;border-radius:50%;background:var(--red-bright);animation:livePulse 1.5s infinite}
         @keyframes livePulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,68,68,.6)}50%{opacity:.5;box-shadow:0 0 0 8px rgba(255,68,68,0)}}
         /* 长按高亮环 */
@@ -249,12 +250,12 @@
         .predict-val.draw{color:var(--orange)}
         .predict-val.loss{color:var(--blue-accent)}
         .predict-summary{margin-top:12px;padding:12px;background:rgba(201,168,76,.08);border-radius:10px;font-size:.78rem;color:var(--gold);line-height:1.6}
-        .prob-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:.8rem}
-        .prob-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
-        .prob-fill{height:100%;border-radius:4px;transition:width .6s ease}
-        .prob-fill.win-fill{background:var(--red-bright)}
-        .prob-fill.draw-fill{background:var(--orange)}
-        .prob-fill.loss-fill{background:var(--blue-accent)}
+        .prob-bar-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;font-size:.95rem;font-weight:600}
+        .prob-bar{flex:1;height:14px;background:var(--border);border-radius:7px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.3)}
+        .prob-fill{height:100%;border-radius:7px;transition:width .8s cubic-bezier(.22,.61,.36,1);position:relative}
+        .prob-fill.win-fill{background:linear-gradient(90deg,var(--red-deep),var(--red-bright));box-shadow:0 0 8px var(--red-glow)}
+        .prob-fill.draw-fill{background:linear-gradient(90deg,#B8700A,var(--orange));box-shadow:0 0 8px rgba(245,158,11,.2)}
+        .prob-fill.loss-fill{background:linear-gradient(90deg,#2A5090,var(--blue-accent));box-shadow:0 0 8px rgba(74,144,217,.2)}
         .factor-tags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
         .factor-tag{padding:4px 11px;border-radius:12px;font-size:.72rem;font-weight:500}
         .factor-tag.pos{background:rgba(45,138,106,.2);color:var(--green-bright)}
@@ -360,9 +361,10 @@
 
         /* ====== 计算器中心 ====== */
         .calc-tabs{display:flex;gap:6px;padding:4px 16px 12px;border-bottom:1px solid var(--border)}
-        .calc-tab-btn{flex:1;text-align:center;padding:10px 0;border-radius:10px;font-size:.82rem;color:var(--sub);background:var(--card);border:1px solid var(--border);cursor:pointer;transition:all .2s;user-select:none;font-weight:600}
-        .calc-tab-btn.active{background:var(--red);color:#fff;border-color:var(--red)}
-        .calc-tab-btn:active{transform:scale(.95)}
+        .calc-tab-btn{flex:1;text-align:center;padding:10px 4px;border-radius:10px;font-size:.78rem;color:var(--sub);background:var(--card);border:1px solid var(--border);cursor:pointer;transition:all .2s;user-select:none;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px}
+        .calc-tab-btn .tool-icon{font-size:1.2rem;line-height:1}
+        .calc-tab-btn.active{background:linear-gradient(135deg,var(--red-deep),var(--red-bright));color:#fff;border-color:var(--red-bright);box-shadow:0 2px 12px var(--red-glow);transform:translateY(-1px)}
+        .calc-tab-btn:active{transform:scale(.93)}
         .calc-panel{display:none;padding:4px 12px 20px;animation:pageIn .25s ease}
         .calc-panel.active{display:block}
         .stat-compare{display:flex;gap:8px;margin-bottom:14px}
@@ -873,13 +875,13 @@
         <div class="app-header"><span class="app-title">🔧 工具中心</span><span class="header-date">分析 & 推演</span></div>
     </div>
     <div class="calc-tabs" id="toolsTabs">
-        <div class="calc-tab-btn active" data-tool="sim">🎮 模拟器</div>
-        <div class="calc-tab-btn" data-tool="sandbox">📊 攻防沙盘</div>
-        <div class="calc-tab-btn" data-tool="kelly">💰 凯利实验室</div>
-        <div class="calc-tab-btn" data-tool="factor">🔑 因子拆解台</div>
-        <div class="calc-tab-btn" data-tool="combo">🔗 串关分析</div>
-        <div class="calc-tab-btn" data-tool="backtest">📈 回测</div>
-        <div class="calc-tab-btn" data-tool="scorers">⚡ 射手榜</div>
+        <div class="calc-tab-btn active" data-tool="sim"><span class="tool-icon">🎮</span>模拟器</div>
+        <div class="calc-tab-btn" data-tool="sandbox"><span class="tool-icon">📊</span>攻防沙盘</div>
+        <div class="calc-tab-btn" data-tool="kelly"><span class="tool-icon">💰</span>凯利实验</div>
+        <div class="calc-tab-btn" data-tool="factor"><span class="tool-icon">🔑</span>因子拆解</div>
+        <div class="calc-tab-btn" data-tool="combo"><span class="tool-icon">🔗</span>串关分析</div>
+        <div class="calc-tab-btn" data-tool="backtest"><span class="tool-icon">📈</span>回测</div>
+        <div class="calc-tab-btn" data-tool="scorers"><span class="tool-icon">⚡</span>射手榜</div>
     </div>
     <!-- 模拟器面板 -->
     <div class="calc-panel active" id="panel-tool-sim">
