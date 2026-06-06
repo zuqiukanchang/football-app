@@ -4915,6 +4915,7 @@ async function initApp(){
     // P3: 消息通知生成
     generateNotifications();
     showPromoBanner();
+    checkMemberExpiry();
 
     setTimeout(()=>{
         if (location.hash && location.hash !== '#home') restoreFromHash();
@@ -5573,7 +5574,7 @@ function showPremiumModal() {
     const accRate = report.overall?.rate || 68;
     if (isPremium) {
         const t = memberTier === 'diamond' ? PRICING.diamond : PRICING.gold;
-        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子+冷门预测+每日3场稳胆<br>✅ 凯利实时监控+5串1推荐+全量回测+批量模拟<br>✅ 极速数据10秒更新+历史赔率+资金流向<br>✅ 1v1专属客服+分析师咨询+每周内参':'✅ AI3终审预测+基础因子<br>✅ 凯利基础版+3串1+30天回测<br>✅ 实时数据1分钟更新<br>✅ 6小时优先客服'}</div><button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
+        modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子+冷门预测+每日3场稳胆<br>✅ 凯利实时监控+5串1推荐+全量回测+批量模拟<br>✅ 极速数据10秒更新+历史赔率+资金流向<br>✅ 1v1专属客服+分析师咨询+每周内参':'✅ AI3终审预测+基础因子<br>✅ 凯利基础版+3串1+30天回测<br>✅ 实时数据1分钟更新<br>✅ 6小时优先客服'}</div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px"><span>🔄 自动续费（8折优惠）</span><label class="toggle-switch"><input type="checkbox" ${autoRenew?'checked':''} onchange="toggleAutoRenew()"><span class="toggle-slider"></span></label></div>${memberExpiry?`<div style="font-size:.73rem;color:var(--sub);margin-bottom:8px">📅 到期：${new Date(memberExpiry).toLocaleDateString()} · 剩余${Math.max(0,Math.ceil((memberExpiry-Date.now())/86400000))}天</div>`:''}${memberTier!=='diamond'?`<button class="sim-btn" style="width:100%;font-size:.75rem;margin-bottom:4px" onclick="upgradeMember('diamond','month')">🔄 升级钻石会员（补差价）</button>`:''}<button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
         modal.querySelector('.modal-btn-confirm').textContent = '关闭';
         modal.querySelector('.modal-btn-confirm').onclick = closeLogoutModal;
     } else {
@@ -5614,7 +5615,70 @@ function activateMember(tier, plan) {
     showToast(`✅ ${p.label}已激活 · ${PRICING[tier].name}（需支付¥${p.price}，当前演示模式）`);
     renderProfile();
 }
-function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
+function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); localStorage.removeItem('fbs-member-since'); localStorage.removeItem('fbs-member-expiry'); localStorage.removeItem('fbs-auto-renew'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
+// 会员状态管理
+let memberSince = parseInt(localStorage.getItem('fbs-member-since') || '0');
+let memberExpiry = parseInt(localStorage.getItem('fbs-member-expiry') || '0');
+let autoRenew = localStorage.getItem('fbs-auto-renew') === 'true';
+function setMemberPlan(tier, planKey) {
+    const now = Date.now(); memberSince = now;
+    const days = planKey === 'day' ? 1 : planKey === 'month' ? 30 : planKey === 'quarter' ? 90 : planKey === 'year' ? 365 : 36500;
+    memberExpiry = now + days * 86400000;
+    localStorage.setItem('fbs-member-since', memberSince);
+    localStorage.setItem('fbs-member-expiry', memberExpiry);
+}
+// 升级补差价
+function calcUpgradePrice(fromTier, toTier, toPlan) {
+    if (!isPremium || !memberExpiry) return PRICING[toTier].plans[toPlan].price;
+    const remainingDays = Math.max(0, Math.ceil((memberExpiry - Date.now()) / 86400000));
+    if (remainingDays <= 0) return PRICING[toTier].plans[toPlan].price;
+    const fromPricePerDay = (PRICING[fromTier]?.plans?.year?.price || 498) / 365;
+    const refundValue = Math.round(remainingDays * fromPricePerDay);
+    const newPrice = PRICING[toTier].plans[toPlan].price;
+    const diff = Math.max(1, newPrice - refundValue);
+    return { newPrice, refundValue, diff, remainingDays };
+}
+// 升级会员（补差价版）
+function upgradeMember(toTier, toPlan) {
+    if (!isPremium) { activateMember(toTier, toPlan); return; }
+    const fromTier = memberTier;
+    const calc = calcUpgradePrice(fromTier, toTier, toPlan);
+    const planName = PRICING[toTier].plans[toPlan].label;
+    const modal = document.getElementById('logoutModal'); if (!modal) return;
+    modal.querySelector('.modal-btn-cancel').style.display = '';
+    modal.querySelector('.modal-btn-cancel').textContent = '取消';
+    modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
+    modal.querySelector('.modal-title').textContent = '🔄 升级' + PRICING[toTier].name;
+    modal.querySelector('.modal-text').innerHTML = `<div style="text-align:left;font-size:.8rem;line-height:1.8"><p>📋 升级详情</p><p>当前：${PRICING[fromTier].name} · 剩余${calc.remainingDays}天</p><p>升级至：${PRICING[toTier].name} · ${planName}</p><p>原价：¥${calc.newPrice}</p><p>剩余价值抵扣：<span style="color:var(--green-bright)">-¥${calc.refundValue}</span></p><p style="color:var(--gold);font-weight:700">实付差价：¥${calc.diff}（最低¥1）</p><p style="font-size:.68rem;color:var(--sub);margin-top:8px">✅ 时长延续：新会员在原基础上延长</p></div>`;
+    modal.querySelector('.modal-btn-confirm').textContent = '确认升级 ¥' + calc.diff;
+    modal.querySelector('.modal-btn-confirm').onclick = () => {
+        memberTier = toTier; isPremium = true;
+        localStorage.setItem('fbs-premium', 'true'); localStorage.setItem('fbs-tier', toTier);
+        setMemberPlan(toTier, toPlan);
+        closeLogoutModal(); showToast('✅ 已升级至' + PRICING[toTier].name); renderProfile();
+    };
+    modal.classList.add('show');
+}
+// 自动续费
+function toggleAutoRenew() {
+    autoRenew = !autoRenew;
+    localStorage.setItem('fbs-auto-renew', autoRenew);
+    showToast(autoRenew ? '🔄 自动续费已开启（到期前3天提醒）' : '已取消自动续费', 2000);
+    if (currentPage === 'profile') renderProfile();
+}
+// 到期提醒检查
+function checkMemberExpiry() {
+    if (!isPremium || !memberExpiry) return;
+    const remainingDays = Math.ceil((memberExpiry - Date.now()) / 86400000);
+    if (remainingDays <= 3 && remainingDays > 0) {
+        showToast(`⏰ 会员${remainingDays}天后到期${autoRenew?'，将自动续费':''}`, 3500);
+    }
+    if (remainingDays <= 0 && isPremium) {
+        isPremium = false; memberTier = 'free';
+        localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier');
+        showToast('会员已到期，续费享优惠', 4000);
+    }
+}
 // 赛事促销检测
 function getActivePromo() {
     const now = new Date();
