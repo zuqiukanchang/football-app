@@ -3080,23 +3080,27 @@ function renderStandings(m) {
 }
 
 // ======================== 详情页 — 前瞻面板 ========================
-// AI接口预留: 设置 window.AI_API_KEY 后自动调用外部AI
+// AI接口: 支持DeepSeek + Claude
 let aiApiEnabled = !!localStorage.getItem('fbs-ai-key');
-function enableAIApi(key) { localStorage.setItem('fbs-ai-key', key); aiApiEnabled = true; showToast('✅ AI接口已启用'); if(currentPage==='detail'&&currentDetailId)renderDetail(currentDetailId); }
+let aiProvider = localStorage.getItem('fbs-ai-provider') || 'deepseek';
+function enableAIApi(key, provider) { localStorage.setItem('fbs-ai-key', key); aiApiEnabled = true; if (provider) { localStorage.setItem('fbs-ai-provider', provider); aiProvider = provider; } showToast('✅ AI接口已启用 (' + aiProvider + ')'); if(currentPage==='detail'&&currentDetailId)renderDetail(currentDetailId); }
 function disableAIApi() { localStorage.removeItem('fbs-ai-key'); aiApiEnabled = false; showToast('AI接口已关闭'); }
 
 async function generateAIPreview(m) {
-    // 若配置了API Key则调用外部AI
     const apiKey = localStorage.getItem('fbs-ai-key');
     if (apiKey && aiApiEnabled) {
         try {
             const prompt = buildAIPrompt(m);
-            const resp = await fetch('https://api.anthropic.com/v1/messages', {
-                method:'POST', headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
-                body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:prompt}]})
-            });
-            if (resp.ok) { const data = await resp.json(); return data.content?.[0]?.text || templateAIPreview(m); }
-        } catch(e) { console.warn('[AI] API调用失败，使用模板分析:', e.message); }
+            let resp, data;
+            if (aiProvider === 'deepseek') {
+                resp = await fetch('https://api.deepseek.com/v1/chat/completions', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body:JSON.stringify({model:'deepseek-chat',max_tokens:600,messages:[{role:'user',content:prompt}],temperature:0.7}) });
+                if (resp.ok) { data = await resp.json(); return data.choices?.[0]?.message?.content || templateAIPreview(m); }
+            } else {
+                resp = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'}, body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:prompt}]}) });
+                if (resp.ok) { data = await resp.json(); return data.content?.[0]?.text || templateAIPreview(m); }
+            }
+            if (!resp.ok) console.warn('[AI] API ' + aiProvider + ' 返回: HTTP ' + resp.status);
+        } catch(e) { console.warn('[AI] 调用失败:', e.message); }
     }
     return templateAIPreview(m);
 }
@@ -5222,9 +5226,9 @@ function showAISettings() {
     modal.querySelector('.modal-title').textContent = '🤖 AI 接口设置';
     modal.querySelector('.modal-text').innerHTML = `
         <div style="text-align:left;font-size:.82rem;line-height:1.7">
-        <p>接入 <strong style="color:var(--gold)">Claude API</strong> 实时生成深度分析</p>
-        <a href="https://console.anthropic.com/settings/keys" target="_blank" style="display:inline-block;width:100%;padding:10px;background:var(--gold);color:#1A0A0A;text-align:center;border-radius:8px;font-weight:700;text-decoration:none;margin:8px 0;font-size:.78rem">🔑 一键获取API Key →</a>
-        <input type="password" id="aiKeyInput" placeholder="输入 API Key (sk-ant-...)" value="${currentKey}" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.8rem;margin:8px 0;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+        <p>接入 <strong style="color:var(--gold)">AI大模型</strong> 实时生成深度分析</p>
+        <div style="display:flex;gap:8px;margin:8px 0"><button class="sort-btn${aiProvider==='deepseek'?' active':''}" style="flex:1;justify-content:center;font-size:.68rem" onclick="aiProvider='deepseek';localStorage.setItem('fbs-ai-provider','deepseek')">🧠 DeepSeek</button><button class="sort-btn${aiProvider==='claude'?' active':''}" style="flex:1;justify-content:center;font-size:.68rem" onclick="aiProvider='claude';localStorage.setItem('fbs-ai-provider','claude')">🤖 Claude</button></div>
+        <input type="password" id="aiKeyInput" placeholder="粘贴API Key" value="${currentKey}" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.8rem;margin:8px 0;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
         ${aiApiEnabled?'<p style="color:var(--green-bright);font-size:.75rem">✅ 当前已启用AI接口</p>':''}
         </div>`;
     modal.querySelector('.modal-btn-cancel').textContent = aiApiEnabled ? '关闭AI' : '取消';
@@ -5232,9 +5236,9 @@ function showAISettings() {
     modal.querySelector('.modal-btn-confirm').textContent = '保存';
     modal.querySelector('.modal-btn-confirm').onclick = () => {
         const key = document.getElementById('aiKeyInput')?.value?.trim();
-        if (key && key.startsWith('sk-ant-')) { enableAIApi(key); closeLogoutModal(); }
+        if (key && (key.startsWith('sk-') || key.startsWith('sk-ant-'))) { enableAIApi(key); closeLogoutModal(); }
         else if (!key) { disableAIApi(); closeLogoutModal(); }
-        else { showToast('API Key格式不正确，需以sk-ant-开头'); }
+        else { showToast('API Key格式不正确'); }
     };
     modal.classList.add('show');
 }
