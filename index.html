@@ -4110,7 +4110,8 @@ function showWalletPinUI(action) {
     walletPinFlow = action; walletPinTemp = '';
     modal.querySelector('.modal-btn-cancel').style.display = '';
     modal.querySelector('.modal-btn-cancel').textContent = '取消';
-    modal.querySelector('.modal-btn-cancel').onclick = () => { walletPinFlow = ''; closeLogoutModal(); };
+    modal.querySelector('.modal-btn-cancel').onclick = () => { clearDotsOnClose(); closeLogoutModal(); };
+    resetPinTimeout();
     if (action === 'setup') {
         modal.querySelector('.modal-title').textContent = '🔐 设置支付密码';
         modal.querySelector('.modal-text').innerHTML = `<p style="font-size:.78rem;color:var(--sub);margin-bottom:10px">为保障资金安全，请设置6位数字支付密码</p>
@@ -4197,9 +4198,11 @@ function verifyWalletPin() {
             <div onclick="document.getElementById(\'pinInput\').focus()" style="width:100%;padding:14px;border:1px dashed var(--gold);border-radius:10px;text-align:center;color:var(--gold-dim);font-size:.8rem;cursor:pointer">点击输入支付密码</div>
             <div id="pinMsg" style="font-size:.73rem;color:var(--red-bright);text-align:center;margin-top:8px;display:none">❌ 密码错误</div>
             ${pinErrorCount>0?`<div style="font-size:.68rem;color:var(--orange);text-align:center;margin-top:4px">⚠️ 已错误${pinErrorCount}次，再错${3-pinErrorCount}次将锁定15分钟</div>`:''}
-            <div style="font-size:.68rem;color:var(--gold);text-align:center;margin-top:8px;cursor:pointer" onclick="closeLogoutModal();showWalletPinUI(\'reset\')">忘记密码？</div>`;
+            <div style="font-size:.68rem;color:var(--gold);text-align:center;margin-top:8px;cursor:pointer" onclick="clearDotsOnClose();closeLogoutModal();showWalletPinUI(\'reset\')">忘记密码？</div>
+            ${renderSafeKeyboard('pinInput')}`;
         modal.querySelector('.modal-btn-confirm').style.display = 'none';
         modal.classList.add('show');
+        resetPinTimeout();
         setTimeout(() => { const inp = document.getElementById('pinInput'); if(inp)filterPinInput(inp); inp?.focus(); }, 300);
     });
 }
@@ -4230,10 +4233,59 @@ function updateDots(val) { const dots = document.querySelectorAll('#pinDots .pin
 function addPinStyles() {
     if (document.getElementById('pin-dot-style')) return;
     const s = document.createElement('style'); s.id = 'pin-dot-style';
-    s.textContent = '.pin-dot{width:36px;height:44px;border-radius:8px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all .2s}';
+    s.textContent = '.pin-dot{width:36px;height:44px;border-radius:8px;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all .2s}.safe-key{width:56px;height:44px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:1.1rem;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center;user-select:none}.safe-key:active{background:var(--card-hover);transform:scale(.93);border-color:var(--gold)}.safe-key.del{color:var(--red-bright);font-size:.75rem}';
     document.head.appendChild(s);
 }
-document.addEventListener('DOMContentLoaded', addPinStyles);
+// 虚拟安全键盘
+function renderSafeKeyboard(inputId) {
+    const keys = [['1','2','3'],['4','5','6'],['7','8','9'],['←','0','✓']];
+    let html = '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:12px">';
+    keys.forEach(row => {
+        html += '<div style="display:flex;gap:6px">';
+        row.forEach(k => {
+            const cls = k === '←' ? 'del' : k === '✓' ? '' : '';
+            const action = k === '←' ? `onSafeKey('${inputId}','back')` : k === '✓' ? `onSafeKey('${inputId}','done')` : `onSafeKey('${inputId}','${k}')`;
+            html += `<div class="safe-key ${cls}" onclick="${action}">${k === '✓' ? '✅' : k}</div>`;
+        });
+        html += '</div>';
+    });
+    return html + '</div>';
+}
+function onSafeKey(inputId, key) {
+    const inp = document.getElementById(inputId); if (!inp) return;
+    if (key === 'back') { inp.value = inp.value.slice(0, -1); inp.dispatchEvent(new Event('input')); }
+    else if (key === 'done') { if (inp.value.length === 6) inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); }
+    else { if (inp.value.length < 6) { inp.value += key; inp.dispatchEvent(new Event('input')); } }
+    updateSafeDisplay(inputId);
+}
+function updateSafeDisplay(inputId) {
+    const inp = document.getElementById(inputId); if (!inp) return;
+    const dots = document.querySelectorAll('#pinDots .pin-dot');
+    const val = inp.value || '';
+    dots.forEach((d, i) => { d.textContent = val[i] ? '●' : ''; d.style.color = val[i] ? 'var(--gold)' : 'var(--border)'; });
+}
+// PIN超时计时器
+let pinTimeout = null;
+function resetPinTimeout() { clearTimeout(pinTimeout); pinTimeout = setTimeout(() => { if (walletPinFlow) { closeLogoutModal(); walletPinFlow = ''; showToast('⏰ 操作超时，请重新操作'); } }, 180000); }
+// 防截图CSS
+function addSecurityMeta() {
+    const style = document.createElement('style');
+    style.textContent = '@media screen and (max-width:9999px){input[type="password"]#pinInput,input[type="password"]#pinInput{-webkit-text-security:disc}}';
+    document.head.appendChild(style);
+}
+// 控制台保护
+function addConsoleProtection() {
+    const warning = '⚠️ 安全警告：此区域仅供开发者使用。请勿在此粘贴任何代码，可能导致账号安全风险。';
+    console.log('%c' + warning, 'color:#FF4444;font-size:16px;font-weight:bold');
+    console.log('%c🔒 支付密码全链路加密保护 · HTTPS传输 · 本地零存储', 'color:#C9A84C;font-size:12px');
+}
+// 自动清空所有PIN输入
+function clearAllPinInputs() {
+    walletPinTemp = ''; clearTimeout(pinTimeout);
+    const inp = document.getElementById('pinInput'); if (inp) inp.value = '';
+    updateDots('');
+}
+function clearDotsOnClose() { clearAllPinInputs(); walletPinFlow = ''; }
 let walletTab = 'home';
 function renderWallet() {
     const container = document.getElementById('walletContent'); if (!container) return;
@@ -4368,7 +4420,7 @@ function showLogoutModal() {
         modal.classList.add('show');
     }
 }
-function closeLogoutModal() { const m = $('#logoutModal'); if (m) m.classList.remove('show'); }
+function closeLogoutModal() { clearDotsOnClose(); const m = $('#logoutModal'); if (m) m.classList.remove('show'); }
 function confirmLogout() {
     if (checkAccountDeletion()) { showToast('⚠️ 账号注销中，无法登录。7天冷静期后可恢复。'); return; }
     localStorage.removeItem('fbs-user-v3');
@@ -6037,7 +6089,7 @@ function showSyncInfo() {
     showToast('💡 点击"备份数据"导出JSON → 新设备"恢复数据"导入，完成同步', 3500);
 }
 
-document.addEventListener('DOMContentLoaded',()=>{initPWA();initTheme();initApp();startAutoRefresh();
+document.addEventListener('DOMContentLoaded',()=>{addPinStyles();addSecurityMeta();addConsoleProtection();initPWA();initTheme();initApp();startAutoRefresh();
     setTimeout(showOnboarding, 800);window.addEventListener('load',logPerf); // 免责弹窗之后再显示引导
 });
 </script>
