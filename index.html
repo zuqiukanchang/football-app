@@ -8,7 +8,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="足球看场">
     <meta name="theme-color" content="#1A0A0A">
-    <meta name="description" content="赤金足坛 - AI驱动的竞彩赛事分析与预测工具">
+    <meta name="keywords" content="足球预测,AI分析,竞彩,赛事数据,比分预测,体育彩票,智能推荐,凯利公式">
+    <meta name="description" content="赤金足坛 - AI驱动的竞彩赛事分析与预测工具。8因子加权模型、凯利投注优化、实时赛事数据、精美分享海报。">
+    <meta name="robots" content="index,follow">
+    <meta name="author" content="赤金足坛">
+    <link rel="canonical" href="https://zuqiukanchang.github.io/football-app/">
+    <!-- 预加载关键字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Open Graph 分享预览 -->
     <meta property="og:title" content="赤金足坛 · AI赛事分析">
     <meta property="og:description" content="8因子AI预测 · 凯利投注模型 · 实时赛事数据 · 支持分享精美预测海报">
@@ -1187,7 +1194,15 @@ const I18N = {
 'no_match':'No matches','no_data':'No data','developing':'Coming soon','please_login':'Please login',
 };
 function t(key, zhFallback) { if (currentLang === 'zh') return zhFallback || key; return I18N[key] || zhFallback || key; }
-function toggleLang() { currentLang = currentLang === 'zh' ? 'en' : 'zh'; localStorage.setItem('fbs-lang', currentLang); showToast(currentLang === 'zh' ? '🇨🇳 中文' : '🇬🇧 English', 1500); renderCurrentPage(); }
+function toggleLang() {
+    if (currentLang === 'zh') currentLang = 'zh-TW';
+    else if (currentLang === 'zh-TW') currentLang = 'en';
+    else currentLang = 'zh';
+    localStorage.setItem('fbs-lang', currentLang);
+    const labels = { zh: '🇨🇳 简体中文', 'zh-TW': '🇹🇼 繁體中文', en: '🇬🇧 English' };
+    showToast(labels[currentLang], 1500);
+    renderCurrentPage();
+}
 function renderCurrentPage() { if (currentPage === 'home') renderHome(); else if (currentPage === 'detail' && currentDetailId) renderDetail(currentDetailId); else if (currentPage === 'predict') renderPredictCenter(); else if (currentPage === 'simulator') renderSimulatorTeams(); else if (currentPage === 'profile') renderProfile(); else if (currentPage === 'team') { const m = matchData.find(x => x.home === currentDetailId); if (m) renderTeam(m.home); } else if (currentPage === 'messages') renderMessages(); }
 
 // ======================== 数据层 ========================
@@ -4868,9 +4883,9 @@ function initPWA() {
     window.addEventListener('appinstalled', () => { pwaInstalled = true; deferredPrompt = null; hideInstallButton(); showToast('✅ APP已安装到桌面！'); });
     // 简单SW（https/localhost下生效）
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-        const swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))));`;
+        const swCode = `const CACHE='akagi-v2';self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/football-app/','/football-app/index.html'])).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>clients.claim()));});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{if(resp.ok){const clone=resp.clone();caches.open(CACHE).then(c=>c.put(e.request,clone));}return resp;}).catch(()=>caches.match('/football-app/'))));});self.addEventListener('message',e=>{if(e.data==='skipWaiting')self.skipWaiting();});`;
         const swUrl = URL.createObjectURL(new Blob([swCode],{type:'application/javascript'}));
-        navigator.serviceWorker.register(swUrl).catch(()=>{});
+        navigator.serviceWorker.register(swUrl,{scope:'/football-app/'}).catch(()=>{});
     }
 }
 function showInstallButton() { const btn = document.getElementById('installBtn'); if (btn && !pwaInstalled) btn.style.display = ''; }
