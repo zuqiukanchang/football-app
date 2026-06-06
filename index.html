@@ -4914,6 +4914,7 @@ async function initApp(){
     renderDateStrip();
     // P3: 消息通知生成
     generateNotifications();
+    showPromoBanner();
 
     setTimeout(()=>{
         if (location.hash && location.hash !== '#home') restoreFromHash();
@@ -5563,6 +5564,13 @@ function showPremiumModal() {
     modal.querySelector('.modal-btn-cancel').textContent = '取消';
     modal.querySelector('.modal-btn-cancel').onclick = closeLogoutModal;
     modal.querySelector('.modal-title').textContent = isPremium ? `当前：${memberTier==='diamond'?'💎 钻石会员':'👑 黄金会员'}` : '💎 选择会员方案';
+    // 用户识别
+    const user = loadUser();
+    const regTime = user?.loginTime || Date.now();
+    const isNewUser = Date.now() - regTime < 7 * 86400000;
+    const isLegacyUser = Date.now() - regTime > 90 * 86400000;
+    const report = getAIEvolutionReport();
+    const accRate = report.overall?.rate || 68;
     if (isPremium) {
         const t = memberTier === 'diamond' ? PRICING.diamond : PRICING.gold;
         modal.querySelector('.modal-text').innerHTML = `<div style="text-align:center"><div style="font-size:3rem">${memberTier==='diamond'?'💎':'👑'}</div><p style="color:${t.color};font-weight:700;font-size:1rem">${t.name}</p><div style="text-align:left;font-size:.78rem;line-height:1.8;margin:10px 0">${memberTier==='diamond'?'✅ AI3终审+深度因子+冷门预测+每日3场稳胆<br>✅ 凯利实时监控+5串1推荐+全量回测+批量模拟<br>✅ 极速数据10秒更新+历史赔率+资金流向<br>✅ 1v1专属客服+分析师咨询+每周内参':'✅ AI3终审预测+基础因子<br>✅ 凯利基础版+3串1+30天回测<br>✅ 实时数据1分钟更新<br>✅ 6小时优先客服'}</div><button class="sim-btn secondary" style="width:100%;font-size:.75rem" onclick="downgradeMember()">退出会员</button></div>`;
@@ -5579,7 +5587,15 @@ function showPremiumModal() {
                     </div>`;}).join('')}
                 </div>
             </div>`;
-        modal.querySelector('.modal-text').innerHTML = `<div style="max-height:400px;overflow-y:auto">${renderTier('gold', PRICING.gold)}${renderTier('diamond', PRICING.diamond)}<div style="text-align:center;margin:10px 0;font-size:.7rem;color:var(--sub)">或输入邀请码激活</div><input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"><div style="display:flex;gap:4px;margin-top:4px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💚</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💙</button></div></div>`;
+        modal.querySelector('.modal-text').innerHTML = `<div style="max-height:400px;overflow-y:auto">
+        <div style="background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(201,168,76,.04));border-radius:10px;padding:10px;margin-bottom:10px;text-align:center;font-size:.73rem">
+        🤖 三AI终审系统 · 近30天准确率<strong style="color:var(--gold)"> ${accRate}%</strong> · ${aiEvolutionLog.length}次复盘验证
+        </div>
+        ${isNewUser?`<div style="background:rgba(61,184,138,.12);border-radius:10px;padding:10px;margin-bottom:10px;text-align:center"><div style="color:var(--green-bright);font-weight:700">🎉 新用户首单特惠</div><div style="font-size:.73rem;color:var(--sub)">黄金月卡 <strong style="color:var(--gold)">¥39</strong>（原¥68）· 钻石月卡 <strong style="color:var(--gold)">¥98</strong>（原¥168）</div></div>`:''}
+        ${isLegacyUser?`<div style="background:rgba(201,168,76,.08);border-radius:10px;padding:10px;margin-bottom:10px;text-align:center"><div style="color:var(--gold);font-weight:700">🏆 老用户专属权益</div><div style="font-size:.73rem;color:var(--sub)">永久原价续费 · 钻石升级5折 · 已赠送1月钻石体验</div></div>`:''}
+        ${renderTier('gold', PRICING.gold)}${renderTier('diamond', PRICING.diamond)}
+        <div style="font-size:.68rem;color:var(--gold-dim);text-align:center;margin:6px 0">💡 连续包月更优惠：黄金¥48/月 · 钻石¥128/月</div>
+        <div style="text-align:center;margin:10px 0;font-size:.7rem;color:var(--sub)">或输入邀请码激活</div><input id="vipCodeInput" placeholder="输入邀请码" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.82rem;margin:4px 0;text-align:center;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"><div style="display:flex;gap:4px;margin-top:4px"><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💚</button><button class="sort-btn" style="flex:1;justify-content:center;font-size:.65rem" onclick="event.preventDefault();showToast('💳 支付开发中，请使用邀请码',2500)">💙</button></div></div>`;
         modal.querySelector('.modal-btn-confirm').textContent = '激活邀请码';
         modal.querySelector('.modal-btn-confirm').onclick = () => {
             const code = document.getElementById('vipCodeInput')?.value?.trim()?.toUpperCase();
@@ -5599,6 +5615,25 @@ function activateMember(tier, plan) {
     renderProfile();
 }
 function downgradeMember() { isPremium = false; memberTier = 'free'; localStorage.removeItem('fbs-premium'); localStorage.removeItem('fbs-tier'); closeLogoutModal(); showToast('已退出会员'); renderProfile(); }
+// 赛事促销检测
+function getActivePromo() {
+    const now = new Date();
+    const m = now.getMonth() + 1, d = now.getDate();
+    if ((m === 6 && d >= 10) || (m === 7 && d <= 20)) return { name: '2026世界杯', tag: '🏆', discount: '买一送一' };
+    if (m === 5 && d >= 20) return { name: '欧冠决赛', tag: '⚽', discount: '限时8折' };
+    return null;
+}
+function showPromoBanner() {
+    const promo = getActivePromo();
+    if (!promo || isPremium) return;
+    const banner = document.createElement('div');
+    banner.style.cssText = 'margin:8px 16px;padding:12px 16px;background:linear-gradient(135deg,#5C2020,#8B2020);border-radius:12px;text-align:center;cursor:pointer;animation:cdPulse 1.5s ease-in-out infinite;font-size:.78rem;color:#FFD700;font-weight:700';
+    banner.innerHTML = `${promo.tag} ${promo.name}特惠 · ${promo.discount} · 点击了解`;
+    banner.onclick = showPremiumModal;
+    const home = document.getElementById('page-home');
+    const featured = document.getElementById('featuredBanner');
+    if (home && featured) featured.parentNode.insertBefore(banner, featured.nextSibling);
+}
 
 // ======================== 数据同步提示 ========================
 function showSyncInfo() {
