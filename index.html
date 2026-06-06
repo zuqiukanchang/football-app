@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="足球看场">
     <meta name="theme-color" content="#1A0A0A">
     <meta name="description" content="足球看场 - AI驱动的竞彩赛事分析与预测工具">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='40%25'%3E%3Cstop offset='0%25' stop-color='%23E8C84C'/%3E%3Cstop offset='50%25' stop-color='%23C9A84C'/%3E%3Cstop offset='100%25' stop-color='%238B6914'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)' stroke='%236B4513' stroke-width='2'/%3E%3Cpath d='M25 35 Q35 20 50 25 Q65 20 75 35 M20 50 Q35 45 50 50 Q65 45 80 50 M25 65 Q35 80 50 75 Q65 80 75 65' fill='none' stroke='%236B4513' stroke-width='1.5' opacity='.4'/%3E%3Ccircle cx='35' cy='30' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='65' cy='30' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='30' cy='60' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='70' cy='60' r='6' fill='%236B4513' opacity='.3'/%3E%3Ccircle cx='50' cy='65' r='6' fill='%236B4513' opacity='.3'/%3E%3Cpath d='M30 30 L25 20 M70 30 L75 20' stroke='%23C9A84C' stroke-width='4' stroke-linecap='round'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='22' font-weight='bold' fill='%234A2020'%3E龙%3C/text%3E%3C/svg%3E">
     <!-- CSP 安全策略（生产环境需根据实际后端调整） -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src *; img-src 'self' data: https:;">
     <title>足球看场 · App-Ready</title>
@@ -20,29 +20,33 @@
     <meta http-equiv="Cache-Control" content="public, max-age=3600, must-revalidate">
     <meta http-equiv="Expires" content="3600">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         :root {
-            --bg: #1A0A0A;
-            --card: #2C1515;
-            --card-hover: #351A1A;
+            --bg: #0D0505;
+            --card: #1A0A0A;
+            --card-hover: #241010;
             --gold: #C9A84C;
-            --gold-dim: #8B7535;
-            --red: #D42A2A;
-            --red-bright: #FF4444;
-            --text: #FFEEE6;
-            --sub: #D4A88C;
-            --border: #5C3030;
-            --green: #2D8A6A;
-            --green-bright: #3DB88A;
-            --orange: #F59E0B;
-            --highlight: #FF6B6B;
-            --blue-accent: #4A90D9;
+            --gold-dim: #A68A3C;
+            --red: #B71C1C;
+            --red-bright: #D42A2A;
+            --text: #F5EDE0;
+            --sub: #C4A882;
+            --border: #4A2020;
+            --green: #2D6A4A;
+            --green-bright: #3DA86A;
+            --orange: #D48A20;
+            --highlight: #E04040;
+            --blue-accent: #5A80C0;
+            --red-deep: #8B0000;
+            --red-glow: rgba(212,42,42,.25);
+            --gold-glow: rgba(201,168,76,.15);
             --nav-height: 64px;
             --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
         *{margin:0;padding:0;box-sizing:border-box}
         html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
         body{
-            font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+            font-family:"Inter","Noto Serif SC","STSong","SimSun","Songti SC",serif;
             background:var(--bg);color:var(--text);margin:0 auto;min-height:100vh;
             padding-bottom:calc(var(--nav-height) + var(--safe-bottom) + 8px);
             line-height:1.5;-webkit-font-smoothing:antialiased;
@@ -53,7 +57,7 @@
         @keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
         /* ====== 吸顶导航（滚动感知） ====== */
-        .sticky-nav{position:sticky;top:0;z-index:25;background:linear-gradient(180deg,var(--bg) 85%,rgba(26,10,10,.92));border-bottom:1px solid var(--border);backdrop-filter:blur(16px);transition:transform .3s cubic-bezier(.22,.61,.36,1),box-shadow .3s}
+        .sticky-nav{position:sticky;top:0;z-index:25;background:linear-gradient(180deg,#8B0000 0%,#5C1010 50%,var(--bg) 100%);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);transition:transform .3s cubic-bezier(.22,.61,.36,1),box-shadow .3s;box-shadow:0 2px 20px rgba(139,0,0,.3)}
         .sticky-nav.collapsed{transform:translateY(-100%)}
         .sticky-nav.scrolled{box-shadow:0 4px 20px rgba(0,0,0,.5)}
         /* 导航底部进度条 */
@@ -117,6 +121,14 @@
         .match-card:nth-child(1){animation-delay:.02s}.match-card:nth-child(2){animation-delay:.06s}.match-card:nth-child(3){animation-delay:.10s}.match-card:nth-child(4){animation-delay:.14s}.match-card:nth-child(5){animation-delay:.18s}
         @keyframes cardSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .match-card:active{transform:scale(.985);background:var(--card-hover)}
+        /* 金属光泽效果 */
+        .match-card::before{content:'';position:absolute;inset:0;border-radius:14px;background:linear-gradient(135deg,rgba(201,168,76,.03) 0%,transparent 40%,transparent 60%,rgba(201,168,76,.02) 100%);pointer-events:none;z-index:1}
+        /* 按钮鎏金效果 */
+        .add-bet-btn{background:linear-gradient(135deg,rgba(201,168,76,.15),rgba(201,168,76,.05));box-shadow:0 2px 8px var(--gold-glow)}
+        .add-bet-btn:active{box-shadow:0 0 16px var(--gold-glow)}
+        .sort-btn.active{background:linear-gradient(135deg,var(--red-deep),var(--red-bright));box-shadow:0 2px 12px var(--red-glow)}
+        .refresh-btn{background:linear-gradient(135deg,rgba(201,168,76,.1),rgba(201,168,76,.03));box-shadow:0 1px 6px var(--gold-glow)}
+        .league-chip.active{background:linear-gradient(135deg,var(--red-deep),var(--red-bright));box-shadow:0 2px 12px var(--red-glow)}
         /* 触摸波纹 */
         .match-card .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.08);transform:scale(0);animation:rippleEffect .6s ease-out;pointer-events:none}
         @keyframes rippleEffect{to{transform:scale(4);opacity:0}}
@@ -174,7 +186,7 @@
         .toast-item.sub-toast{background:var(--card);color:var(--sub);font-size:.75rem}
 
         /* ====== 底部导航 ====== */
-        .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0 calc(6px + var(--safe-bottom));z-index:20;backdrop-filter:blur(12px)}
+        .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:linear-gradient(0deg,var(--bg) 0%,#1A0808 100%);border-top:2px solid rgba(201,168,76,.2);display:flex;justify-content:space-around;padding:6px 0 calc(6px + var(--safe-bottom));z-index:20;backdrop-filter:blur(12px);box-shadow:0 -4px 20px rgba(139,0,0,.15)}
         .nav-item{display:flex;flex-direction:column;align-items:center;font-size:.62rem;gap:3px;color:var(--sub);cursor:pointer;padding:4px 14px;border-radius:10px;min-height:44px;justify-content:center;position:relative;transition:all .2s;user-select:none}
         .nav-item .nav-icon{font-size:1.15rem;transition:transform .2s}
         .nav-item.active{color:var(--gold)}
@@ -735,7 +747,7 @@
 <div id="page-home" class="page active">
     <div class="sticky-nav">
         <div class="app-header">
-            <span class="app-title">⚽ 足球看场</span>
+            <span class="app-title"><svg width="26" height="26" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:2px"><defs><radialGradient id="sg" cx="50%" cy="40%"><stop offset="0%" stop-color="#E8C84C"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#8B6914"/></radialGradient></defs><circle cx="50" cy="50" r="46" fill="url(#sg)" stroke="#6B4513" stroke-width="2"/><text x="50" y="58" text-anchor="middle" font-size="24" font-weight="bold" fill="#4A2020">龙</text></svg>足球看场</span>
             <span style="display:flex;align-items:center;gap:8px">
                 <button id="installBtn" style="display:none;padding:4px 10px;border-radius:12px;font-size:.68rem;background:var(--gold);color:#000;border:none;cursor:pointer;font-weight:600" onclick="installApp()">📲 安装</button>
                 <span class="header-date" id="headerDate"></span>
@@ -3928,10 +3940,10 @@ function drawProfitChart() {
 // 更多主题
 let currentTheme = localStorage.getItem('fbs-theme-v2') || 'dark';
 const THEMES = {
-    dark: { bg: '#1A0A0A', card: '#2C1515', gold: '#C9A84C', red: '#D42A2A', green: '#2D8A6A', blue: '#4A90D9' },
-    gold: { bg: '#1A160A', card: '#2C2615', gold: '#F5C842', red: '#D47A2A', green: '#2D8A4A', blue: '#4A70D9' },
-    ocean: { bg: '#0A141A', card: '#15202C', gold: '#4AC9C9', red: '#D44A6A', green: '#2DA8A6', blue: '#4AC9D9' },
-    forest: { bg: '#0A1A0E', card: '#152C1E', gold: '#7AC94C', red: '#D44A4A', green: '#3DB88A', blue: '#4A90D9' },
+    dark: { bg: '#0D0505', card: '#1A0A0A', gold: '#C9A84C', red: '#B71C1C', green: '#2D6A4A', blue: '#5A80C0' },
+    gold: { bg: '#120E05', card: '#1E180A', gold: '#E8C84C', red: '#C03920', green: '#2D7A3A', blue: '#5A70C0' },
+    ocean: { bg: '#050D12', card: '#0A1820', gold: '#4AC9C9', red: '#C0394A', green: '#2DA8A6', blue: '#4AC9D9' },
+    forest: { bg: '#050D08', card: '#0A1A12', gold: '#8AC94C', red: '#C03939', green: '#3DB88A', blue: '#5A90D9' },
 };
 function applyTheme(name) {
     currentTheme = name; localStorage.setItem('fbs-theme-v2', name);
@@ -4451,7 +4463,7 @@ let deferredPrompt = null;
 let pwaInstalled = false;
 function initPWA() {
     // Blob manifest
-    const manifest = { name:'足球看场', short_name:'足球看场', start_url:'.', display:'standalone', background_color:'#1A0A0A', theme_color:'#1A0A0A', description:'AI驱动的竞彩赛事分析与预测工具', icons:[{src:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#1A0A0A"/><text x="50" y="65" text-anchor="middle" font-size="50">⚽</text></svg>'),sizes:'512x512',type:'image/svg+xml'}] };
+    const manifest = { name:'足球看场', short_name:'足球看场', start_url:'.', display:'standalone', background_color:'#0D0505', theme_color:'#8B0000', description:'AI驱动的竞彩赛事分析与预测工具', icons:[{src:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><radialGradient id="g" cx="50%" cy="35%"><stop offset="0%" stop-color="#E8C84C"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#6B4513"/></radialGradient></defs><rect width="512" height="512" rx="100" fill="#8B0000"/><circle cx="256" cy="240" r="180" fill="url(#g)" stroke="#4A2020" stroke-width="8"/><text x="256" y="265" text-anchor="middle" font-size="120" font-weight="bold" fill="#3A1010">龙</text></svg>'),sizes:'512x512',type:'image/svg+xml'}] };
     const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/json'}));
     document.head.insertAdjacentHTML('beforeend',`<link rel="manifest" href="${manifestUrl}">`);
     // 检测已安装
