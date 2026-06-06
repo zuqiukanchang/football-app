@@ -713,6 +713,18 @@
         html.light .bottom-nav{background:var(--bg)}
         html.light .match-card.live::before{background:var(--red-bright)}
         html.light .score-live{text-shadow:0 0 10px rgba(231,76,60,.4)}
+        /* ====== 细节优化 ====== */
+        /* 倒计时脉冲 */
+        .countdown-badge.pulse{animation:cdPulse .8s ease-in-out infinite}
+        @keyframes cdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.08)}}
+        /* 比分数字弹跳 */
+        .score-pop{animation:scorePop .4s cubic-bezier(.22,.61,.36,1)}
+        @keyframes scorePop{0%{transform:scale(1)}30%{transform:scale(1.4);color:#FFD700}100%{transform:scale(1)}}
+        /* Tab面板淡入 */
+        .tab-panel.active{animation:tabFadeIn .2s ease}
+        @keyframes tabFadeIn{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+        /* 搜索框清除按钮 */
+        #searchInput::-webkit-search-cancel-button{filter:invert(.6);cursor:pointer}
     </style>
 </head>
 <body>
@@ -1874,6 +1886,7 @@ const DataService = {
 let currentLeague='all',currentSort='default',currentSortDir='asc',currentPage='home',currentDetailId=null,currentPredictPlan='sijiliang';
 let selectedDate=''; // P2: 日历筛选，空=全部日期
 let searchTerm=''; // 搜索关键词
+let scrollPositions = {}; // 页面滚动位置记忆
 let followedTeams = JSON.parse(localStorage.getItem('fbs-follows') || '[]');
 let predictionHistory = JSON.parse(localStorage.getItem('fbs-pred-history') || '[]');
 function saveFollows() { localStorage.setItem('fbs-follows', JSON.stringify(followedTeams)); }
@@ -2094,13 +2107,14 @@ function getCountdown(ts){const d=ts-Date.now();if(d<=0)return'即将开始';con
 // ======================== 页面导航 ========================
 function navigateTo(page,data){
     safeRender(() => {
+        // 保存当前滚动位置
+        if (currentPage) scrollPositions[currentPage] = window.scrollY;
         $$('.page').forEach(p=>p.classList.remove('active'));
         const t=$('#page-'+page);if(t)t.classList.add('active');
         currentPage=page;
         $$('.nav-item').forEach(n=>n.classList.remove('active'));
         const ni=$(`.nav-item[data-page="${page}"]`);if(ni)ni.classList.add('active');
         clearAllTimers();
-        // URL 哈希路由（支持深链接和分享）
         const hash = data ? `#${page}/${data}` : `#${page}`;
         if (location.hash !== hash) history.replaceState(null, '', hash);
         if(page==='home'){renderHome();startHomeTimers()}
@@ -2111,7 +2125,9 @@ function navigateTo(page,data){
         else if(page==='login')renderLogin()
         else if(page==='team'&&data){renderTeam(data)}
         else if(page==='messages'){renderMessages()}
-        window.scrollTo({top:0,behavior:'smooth'});
+        // 恢复目标页面滚动位置
+        const savedY = scrollPositions[page] || 0;
+        window.scrollTo({top:savedY,behavior:'smooth'});
     }, () => { navigateTo('home'); showToast('页面出错，已返回首页'); });
 }
 // 从 URL hash 恢复路由
@@ -2212,7 +2228,7 @@ function updateFeaturedBanner(m){
     if(m.status==='live'){tag.textContent='⚡ 正在直播';tag.style.background='var(--red-bright)';tag.style.color='#fff'}
     else{tag.textContent='AI 赛前深度分析';tag.style.background='var(--orange)';tag.style.color='#000'}
 }
-function updateCountdowns(){$$('.countdown-badge').forEach(el=>{const ts=parseInt(el.dataset.countdown);if(ts)el.textContent='⏱ '+getCountdown(ts)})}
+function updateCountdowns(){$$('.countdown-badge').forEach(el=>{const ts=parseInt(el.dataset.countdown);if(ts){const remain=ts-Date.now();el.textContent='⏱ '+getCountdown(ts);el.classList.toggle('pulse',remain>0&&remain<1800000)}})}
 
 // ======================== 详情页渲染 ========================
 function renderDetail(matchId){
@@ -4113,9 +4129,9 @@ function patchLiveCard(m) {
         const newScore = `${m.homeGoals}:${m.awayGoals}`;
         if (scoreEl.textContent.trim() !== newScore) {
             scoreEl.textContent = newScore;
-            scoreEl.classList.remove('score-changed');
-            void scoreEl.offsetWidth; // 强制回流以重启动画
-            scoreEl.classList.add('score-changed');
+            scoreEl.classList.remove('score-changed','score-pop');
+            void scoreEl.offsetWidth;
+            scoreEl.classList.add('score-changed','score-pop');
         }
     }
     // 更新进度条
