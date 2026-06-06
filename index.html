@@ -67,7 +67,9 @@
         .app-container{max-width:480px;margin:0 auto;position:relative}
         .page{display:none;animation:pageIn .28s cubic-bezier(.22,.61,.36,1)}
         .page.active{display:block}
+        .page.exiting{animation:pageOut .2s ease forwards}
         @keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pageOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-8px)}}
 
         /* ====== 吸顶导航（滚动感知） ====== */
         .sticky-nav{position:sticky;top:0;z-index:25;background:linear-gradient(180deg,#8B0000 0%,#5C1010 50%,var(--bg) 100%);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);transition:transform .3s cubic-bezier(.22,.61,.36,1),box-shadow .3s;box-shadow:0 2px 20px rgba(139,0,0,.3)}
@@ -777,8 +779,12 @@
         /* 防重复点击 */
         .btn-cooling{pointer-events:none;opacity:.6;transition:opacity .3s}
         /* 错误重试提示 */
-        .retry-banner{text-align:center;padding:18px;margin:8px 16px;background:var(--card);border-radius:14px;border:1px dashed var(--gold);cursor:pointer;transition:all .2s}
-        .retry-banner:active{background:var(--card-hover)}
+        .retry-banner{text-align:center;padding:18px;margin:8px 16px;background:var(--card);border-radius:14px;border:1px dashed var(--gold);cursor:pointer;transition:all .2s;user-select:none}
+        .retry-banner:active{background:var(--card-hover);transform:scale(.98)}
+        .retry-banner:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+        /* 全局无障碍 */
+        :focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
+        button:focus-visible,.league-chip:focus-visible,.nav-item:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
         /* 表单验证提示 */
         .input-error{border-color:var(--red-bright)!important;box-shadow:0 0 8px rgba(255,68,68,.2)!important}
         .input-hint{font-size:.68rem;margin-top:2px;display:none}
@@ -4571,8 +4577,16 @@ function bindEvents(){
     $('#toolsTabs').addEventListener('click',function(e){const t=e.target.closest('.calc-tab-btn');if(!t)return;currentTool=t.dataset.tool;renderSimulatorTeams()});
     // 底部导航
     $$('.nav-item').forEach(item=>item.addEventListener('click',()=>navigateTo(item.dataset.page)));
-    // Esc返回
-    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&currentPage!=='home')navigateTo('home')});
+    // 全局键盘快捷键
+    document.addEventListener('keydown',function(e){
+        if(e.key==='Escape'){
+            const modal=document.querySelector('.modal-overlay.show');
+            if(modal){modal.classList.remove('show');return}
+            if(currentPage!=='home')navigateTo('home');
+        }
+        if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)){e.preventDefault();document.getElementById('searchInput')?.focus()}
+        if(e.ctrlKey&&e.key==='r'){e.preventDefault();manualRefresh()}
+    });
 }
 
 // ======================== 初始化 ========================
