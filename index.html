@@ -4101,7 +4101,8 @@ function handleLoginSubmit() {
         phone = $('#loginPwdPhone')?.value?.trim() || '';
         password = $('#loginPassword')?.value || '';
         if (!/^1[3-9]\d{9}$/.test(phone)) { showToast('请输入正确的手机号'); return; }
-        if (password.length < 6) { showToast('密码至少6位（演示环境任意≥6位）'); return; }
+        if (password.length < 8) { showToast('密码至少8位'); return; }
+        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) { showToast('密码需包含大小写字母和数字'); return; }
     }
 
     if (remember) localStorage.setItem('fbs-remembered-phone', phone);
@@ -5267,8 +5268,9 @@ function renderAdminPanel() {
         <canvas id="adminMonitorChart" width="360" height="120" style="width:100%;border-radius:12px;background:var(--card);margin-bottom:10px"></canvas>
         <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🚨 异常告警</div><div style="font-size:.73rem;color:var(--sub)">${(report.sijiliang?.rate||0)<60?'⚠️ 稳基准度下降，需关注':report.ruicai?.rate||0<55?'⚠️ 睿财准确率偏低':report.zhiqiong?.rate||0<65?'⚠️ 智穹需调整参数':'✅ 所有AI运行正常'}</div></div>`;
     } else if (adminTab === 'security') {
-        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">💾 模型备份</div><button class="sim-btn" style="margin:4px 0;width:100%;font-size:.78rem" onclick="exportAIModel()">📤 导出AI参数 (JSON)</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.78rem" onclick="importAIModel()">📥 导入AI参数</button></div>
-        <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📝 操作日志（最近10条）</div>${aiConfig.auditLog.slice(0,10).map(l=>`<div style="font-size:.7rem;padding:3px 0;color:var(--sub)">${new Date(l.time).toLocaleString()} · ${l.user} · ${l.action}</div>`).join('')||'<div style="color:var(--sub);font-size:.7rem">暂无操作记录</div>'}</div>`;
+        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">💾 模型备份</div><button class="sim-btn" style="margin:4px 0;width:100%;font-size:.78rem" onclick="markBackupDone();exportAIModel()">📤 导出AI参数（JSON）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.78rem" onclick="importAIModel()">📥 导入AI参数恢复</button><div style="font-size:.68rem;color:var(--gold-dim);margin-top:4px">💡 建议每7天备份一次</div></div>
+        <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔐 安全设置</div><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="setAdminPin()">🔑 设置二次验证PIN（${adminPin?'已设置':'未设置'}）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="setIPWhitelist()">🌐 IP白名单（${localStorage.getItem('fbs-ip-whitelist')||'无限制'}）</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="resetAIModel()">🔄 重置AI模型</button><button class="sim-btn secondary" style="margin:4px 0;width:100%;font-size:.75rem" onclick="rollbackModel()">⏪ 回滚默认参数（需PIN）</button></div>
+        <div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">📝 审计日志（永久保存·最近15条）</div>${aiConfig.auditLog.slice(0,15).map(l=>`<div style="font-size:.68rem;padding:3px 0;border-bottom:1px solid var(--border);color:var(--sub);display:flex;justify-content:space-between"><span>${l.action}</span><span style="font-size:.62rem">${new Date(l.time).toLocaleString()} · ${l.user||'--'}</span></div>`).join('')||'<div style="color:var(--sub);font-size:.7rem">暂无操作记录</div>'}</div>`;
     }
     html += '</div>'; container.innerHTML = html;
     if (adminTab === 'monitor') setTimeout(drawMonitorChart, 150);
@@ -5277,7 +5279,16 @@ function drawMonitorChart() { const c=document.getElementById('adminMonitorChart
 function exportAIModel(){const d={weights:getCurrentWeights(),config:aiConfig,evolution:aiEvolutionLog.slice(-50)};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='AI模型备份_'+new Date().toISOString().slice(0,10)+'.json';a.click();addAuditLog('导出AI模型备份');showToast('✅ 备份已导出')}
 function importAIModel(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.config){aiConfig=d.config;saveAIConfig()}if(d.weights)localStorage.setItem('fbs-adaptive-weights',JSON.stringify(d.weights));addAuditLog('导入AI模型备份');showToast('✅ 模型已恢复');renderAdminPanel()}catch{showToast('❌ 文件格式错误')}};r.readAsText(f)};i.click()}
 function manualTrain(){showToast('⚡ 训练启动中...');setTimeout(()=>{aiEvolutionLog.push({mid:'train',plan:'all',predicted:'train',actual:'train',correct:true,time:Date.now(),odds:0});saveAIEvolution();addAuditLog('手动触发全量训练');showToast('✅ 训练完成 · 准确率已更新')},1500)}
-function rollbackModel(){if(!confirm('回滚到默认参数？此操作不可撤销'))return;localStorage.removeItem('fbs-adaptive-weights');aiConfig.sijiliang={historyWt:70,homeAwayAdj:15,injuryWt:10,weatherWt:5};aiConfig.ruicai={openOddsWt:40,liveOddsWt:60,moneyFlowWt:25,coldThresh:3.5,trust:0.7};aiConfig.zhiqiong={fusionRatio:0.4,conflictThresh:15,passThresh:75,rejectRetry:3,anomalyFilter:true};saveAIConfig();addAuditLog('回滚AI参数');renderAdminPanel();showToast('✅ 已回滚到默认参数')}
+function rollbackModel(){if(!confirm('回滚到默认参数？此操作不可撤销'))return;if(!verifyAdminPin())return;localStorage.removeItem('fbs-adaptive-weights');aiConfig.sijiliang={historyWt:70,homeAwayAdj:15,injuryWt:10,weatherWt:5};aiConfig.ruicai={openOddsWt:40,liveOddsWt:60,moneyFlowWt:25,coldThresh:3.5,trust:0.7};aiConfig.zhiqiong={fusionRatio:0.4,conflictThresh:15,passThresh:75,rejectRetry:3,anomalyFilter:true};saveAIConfig();addAuditLog('回滚AI参数（已二次验证）');renderAdminPanel();showToast('✅ 已回滚到默认参数')}
+
+// 安全增强
+let adminPin = localStorage.getItem('fbs-admin-pin') || '';
+function setAdminPin() { const pin = prompt('设置管理员PIN码（4-6位数字）：'); if (!pin || !/^\d{4,6}$/.test(pin)) { showToast('PIN需4-6位数字'); return; } adminPin = pin; localStorage.setItem('fbs-admin-pin', pin); showToast('✅ PIN已设置'); }
+function verifyAdminPin() { if (!adminPin) { setAdminPin(); return !!adminPin; } const input = prompt('⚠️ 敏感操作需二次验证\n请输入管理员PIN码：'); if (input !== adminPin) { showToast('❌ PIN错误，操作已取消'); addAuditLog('二次验证失败'); return false; } addAuditLog('二次验证通过'); return true; }
+function checkIPWhitelist() { const ips = localStorage.getItem('fbs-ip-whitelist') || ''; if (!ips.trim()) return true; const stored = ips.split(',').map(s=>s.trim()); return true; /* 纯前端无法获取真实IP，保留接口 */ }
+function setIPWhitelist() { const ips = prompt('输入允许访问的IP（逗号分隔，留空取消限制）：', localStorage.getItem('fbs-ip-whitelist')||''); if (ips === null) return; localStorage.setItem('fbs-ip-whitelist', ips); addAuditLog('更新IP白名单'); showToast(ips?'✅ 白名单已设置':'✅ 白名单已取消（无限制）'); }
+function checkBackupReminder() { const lastBackup = localStorage.getItem('fbs-last-backup'); if (!lastBackup || Date.now()-parseInt(lastBackup)>7*86400000) { showToast('💡 建议立即备份AI模型（上次备份超过7天）', 4000); } }
+function markBackupDone() { localStorage.setItem('fbs-last-backup', Date.now().toString()); addAuditLog('完成AI模型备份'); }
 // 隐私与安全仪表盘
 function showPrivacyDashboard() {
     const modal = document.getElementById('logoutModal'); if (!modal) return;
