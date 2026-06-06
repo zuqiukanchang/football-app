@@ -1129,6 +1129,15 @@
     <div id="adminContent"></div>
 </div>
 
+<!-- ==================== 钱包 ==================== -->
+<div id="page-wallet" class="page">
+    <div class="sticky-nav">
+        <div class="back-link" onclick="navigateTo('profile')">← 返回</div>
+        <div class="app-header"><span class="app-title">💰 我的钱包</span></div>
+    </div>
+    <div id="walletContent"></div>
+</div>
+
 <div id="page-messages" class="page">
     <div class="sticky-nav">
         <div class="back-link" onclick="navigateTo('home')">← 返回首页</div>
@@ -2478,6 +2487,7 @@ function navigateTo(page,data){
         else if(page==='team'){if(data)renderTeam(data);else{const m=matchData.find(x=>followedTeams.includes(x.home));if(m)renderTeam(m.home);else navigateTo('home')}}
         else if(page==='messages'){renderMessages()}
         else if(page==='admin'){if(guardAdmin())renderAdminPanel()}
+        else if(page==='wallet'){renderWallet()}
         // 恢复目标页面滚动位置
         const savedY = scrollPositions[page] || 0;
         window.scrollTo({top:savedY,behavior:'smooth'});
@@ -2489,7 +2499,7 @@ function restoreFromHash() {
     if (!hash || hash === 'home') return;
     const [page, ...rest] = hash.split('/');
     const data = rest.join('/');
-    if (['home','detail','predict','simulator','profile','login','team','messages','admin'].includes(page)) {
+    if (['home','detail','predict','simulator','profile','login','team','messages','admin','wallet'].includes(page)) {
         navigateTo(page, data || undefined);
     }
 }
@@ -3761,6 +3771,7 @@ function renderProfile(){
             </div>
             <!-- 功能菜单 -->
             <div class="menu-section">
+                <div class="menu-item" onclick="navigateTo('wallet')"><div class="menu-left"><span class="menu-icon">💰</span><span class="menu-text">我的钱包</span></div><span style="color:var(--gold);font-size:.7rem">¥${walletBalance.toFixed(0)}</span></div>
                 <div class="menu-item" onclick="navigateTo('simulator');currentTool='sim';renderSimulatorTeams()"><div class="menu-left"><span class="menu-icon">📋</span><span class="menu-text">我的投注单</span></div><span class="bet-badge-inline">${betSlip.length}</span></div>
                 <div class="menu-item" onclick="showBetHistory()"><div class="menu-left"><span class="menu-icon">📈</span><span class="menu-text">投注记录</span></div><span style="font-size:.68rem;color:var(--sub)">${totalBets}单</span></div>
                 <div class="menu-item" onclick="showFavoritesList()"><div class="menu-left"><span class="menu-icon">⭐</span><span class="menu-text">我的收藏比赛</span></div><span class="bet-badge-inline" style="background:var(--gold);color:#000">${favorites.length}</span></div>
@@ -4070,6 +4081,85 @@ function renderAIEvolution() {
     }, 150);
 }
 
+// ======================== 钱包系统 ========================
+let walletBalance = parseFloat(localStorage.getItem('fbs-wallet') || '0');
+let walletFrozen = parseFloat(localStorage.getItem('fbs-wallet-frozen') || '0');
+let walletTransactions = JSON.parse(localStorage.getItem('fbs-wallet-tx') || '[]');
+let walletPin = localStorage.getItem('fbs-wallet-pin') || '';
+function saveWallet() { localStorage.setItem('fbs-wallet', walletBalance.toFixed(2)); localStorage.setItem('fbs-wallet-frozen', walletFrozen.toFixed(2)); }
+function saveWalletTx() { localStorage.setItem('fbs-wallet-tx', JSON.stringify(walletTransactions.slice(0, 200))); }
+function addWalletTx(type, amount, status, desc) {
+    walletTransactions.unshift({ id: 'TX' + Date.now(), type, amount, status, desc, time: Date.now() });
+    saveWalletTx();
+}
+function setWalletPin() { const pin = prompt('设置6位支付密码：'); if (!pin || !/^\d{6}$/.test(pin)) { showToast('密码需6位数字'); return; } walletPin = pin; localStorage.setItem('fbs-wallet-pin', pin); showToast('✅ 支付密码已设置'); }
+function verifyWalletPin() { if (!walletPin) { setWalletPin(); return !!walletPin; } const input = prompt('请输入6位支付密码：'); if (input !== walletPin) { showToast('❌ 密码错误'); return false; } return true; }
+let walletTab = 'home';
+function renderWallet() {
+    const container = document.getElementById('walletContent'); if (!container) return;
+    const tabs = ['home','topup','withdraw','history','security'];
+    const tabNames = { home: '🏠 首页', topup: '📥 充值', withdraw: '📤 提现', history: '📋 记录', security: '🔒 安全' };
+    const totalTopup = walletTransactions.filter(t => t.type === '充值').reduce((s, t) => s + t.amount, 0);
+    const totalSpent = walletTransactions.filter(t => t.type === '消费').reduce((s, t) => s + t.amount, 0);
+    let html = `<div style="padding:12px 16px">
+        <div style="background:linear-gradient(135deg,var(--card),#3D1A1A);border-radius:14px;padding:18px;margin-bottom:12px;text-align:center">
+            <div style="font-size:.7rem;color:var(--sub);margin-bottom:4px">可用余额</div>
+            <div style="font-size:2.4rem;font-weight:800;color:var(--gold)">¥${walletBalance.toFixed(2)}</div>
+            <div style="display:flex;justify-content:center;gap:16px;margin-top:8px;font-size:.68rem;color:var(--sub)"><span>冻结 ¥${walletFrozen.toFixed(2)}</span><span>累计充值 ¥${totalTopup.toFixed(0)}</span><span>累计消费 ¥${totalSpent.toFixed(0)}</span></div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:10px;overflow-x:auto">${tabs.map(t=>`<button class="sort-btn${walletTab===t?' active':''}" style="flex:1;text-align:center;justify-content:center;font-size:.65rem;white-space:nowrap" onclick="walletTab='${t}';renderWallet()">${tabNames[t]}</button>`).join('')}</div>`;
+    if (walletTab === 'home') {
+        html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <button class="sim-btn" style="font-size:.78rem" onclick="walletTab='topup';renderWallet()">📥 充值</button>
+            <button class="sim-btn secondary" style="font-size:.78rem" onclick="walletTab='withdraw';renderWallet()">📤 提现</button></div>
+            <div style="font-size:.78rem;color:var(--gold);margin-bottom:6px">📋 最近交易</div>
+            ${walletTransactions.slice(0, 3).map(t => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.75rem"><span>${t.type}</span><span style="color:${t.type==='充值'?'var(--green-bright)':t.type==='提现'?'var(--red-bright)':'var(--sub)'}">${t.type==='充值'?'+':'-'}¥${t.amount.toFixed(2)}</span><span style="color:var(--sub);font-size:.68rem">${new Date(t.time).toLocaleDateString()}</span></div>`).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无交易记录</div>'}`;
+    } else if (walletTab === 'topup') {
+        html += `<div style="text-align:center"><p style="color:var(--gold);font-weight:700;margin-bottom:8px">选择充值金额</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">${[{amt:50,bonus:0},{amt:100,bonus:10},{amt:200,bonus:30},{amt:500,bonus:80},{amt:1000,bonus:200},{amt:0,bonus:0,label:'自定义'}].map(({amt,bonus,label})=>`<div onclick="${amt>0?`doTopup(${amt},${bonus})`:`customTopup()`}" style="background:var(--card);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;border:1px solid var(--border);transition:all .15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'"><div style="font-weight:700;color:var(--text)">${label||'¥'+amt}</div>${bonus>0?`<div style="font-size:.65rem;color:var(--green-bright)">送¥${bonus}</div>`:amt===0?'':`<div style="font-size:.65rem;color:var(--sub)">充值</div>`}</div>`).join('')}</div>
+            <p style="font-size:.68rem;color:var(--sub)">💳 支持微信/支付宝/Apple Pay · 充值即时到账</p></div>`;
+    } else if (walletTab === 'withdraw') {
+        html += `<div style="text-align:center"><p style="color:var(--gold);font-weight:700;margin-bottom:8px">提现到</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px"><button class="sort-btn active" style="flex:1;justify-content:center">💚 微信</button><button class="sort-btn" style="flex:1;justify-content:center">💙 支付宝</button><button class="sort-btn" style="flex:1;justify-content:center">🏦 银行卡</button></div>
+            <input id="withdrawAmt" type="number" placeholder="提现金额（最低¥10）" style="width:100%;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.85rem;text-align:center;margin-bottom:8px;outline:none" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+            <button class="sim-btn" style="font-size:.8rem" onclick="doWithdraw()">确认提现</button>
+            <p style="font-size:.65rem;color:var(--sub);margin-top:4px">T+1到账 · 手续费1%（最低¥1，最高¥20）· 单日限额¥5000</p></div>`;
+    } else if (walletTab === 'history') {
+        html += `<div style="max-height:350px;overflow-y:auto">${walletTransactions.map(t => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.75rem"><div><span style="font-size:.82rem">${t.type==='充值'?'📥':t.type==='提现'?'📤':t.type==='消费'?'💳':'🔄'}</span></div><div style="flex:1;margin-left:8px"><div>${t.desc||t.type}</div><div style="font-size:.65rem;color:var(--sub)">${t.id} · ${new Date(t.time).toLocaleString()}</div></div><div style="text-align:right"><div style="color:${t.type==='充值'?'var(--green-bright)':'var(--red-bright)'};font-weight:700">${t.type==='充值'?'+':'-'}¥${t.amount.toFixed(2)}</div><div style="font-size:.65rem;color:${t.status==='成功'?'var(--green-bright)':'var(--sub)'}">${t.status||'成功'}</div></div></div>`).join('') || '<div style="color:var(--sub);text-align:center;padding:12px">暂无交易记录</div>'}</div>`;
+    } else if (walletTab === 'security') {
+        html += `<div class="card" style="background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px"><div style="color:var(--gold);font-weight:700;margin-bottom:8px">🔐 支付安全</div>
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="setWalletPin()">🔑 支付密码（${walletPin?'已设置':'未设置'}）</button>
+            <button class="sim-btn secondary" style="width:100%;font-size:.75rem;margin:4px 0" onclick="showToast('📱 指纹/面容支付仅在移动端可用')">👆 指纹/面容支付</button>
+            <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>单笔限额</span><span style="float:right;color:var(--gold)">¥5000</span></div>
+            <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>每日限额</span><span style="float:right;color:var(--gold)">¥20000</span></div>
+            <div style="padding:8px 0;font-size:.75rem;color:var(--sub)"><span>异常交易提醒</span><span style="float:right;color:var(--green-bright)">已开启</span></div></div>`;
+    }
+    html += '</div>'; container.innerHTML = html;
+}
+function doTopup(amount, bonus) {
+    if (!verifyWalletPin()) return;
+    walletBalance += amount + bonus;
+    walletFrozen += bonus;
+    addWalletTx('充值', amount, '成功', bonus > 0 ? `充值¥${amount} 赠送¥${bonus}` : `充值¥${amount}`);
+    saveWallet();
+    showToast(`✅ 充值成功！到账¥${(amount+bonus).toFixed(0)}（含赠送¥${bonus}）`);
+    renderWallet();
+}
+function customTopup() { const amt = parseFloat(prompt('输入自定义充值金额（最低10元）：')); if (amt >= 10) doTopup(amt, Math.floor(amt / 10) * 5); else showToast('最低充值10元'); }
+function doWithdraw() {
+    const amt = parseFloat(document.getElementById('withdrawAmt')?.value);
+    if (!amt || amt < 10) { showToast('最低提现10元'); return; }
+    if (amt > 5000) { showToast('单日提现上限¥5000'); return; }
+    if (amt > walletBalance) { showToast('余额不足'); return; }
+    if (!verifyWalletPin()) return;
+    const fee = Math.max(1, Math.min(20, Math.round(amt * 0.01)));
+    walletBalance -= amt;
+    walletFrozen += amt - fee;
+    addWalletTx('提现', amt, '处理中', `提现¥${amt} 手续费¥${fee} 到账¥${(amt-fee).toFixed(0)}`);
+    saveWallet();
+    showToast(`📤 提现申请已提交，预计T+1到账¥${(amt-fee).toFixed(0)}`);
+    renderWallet();
+}
 // 数据备份/恢复
 function exportUserData() {
     const data = {};
