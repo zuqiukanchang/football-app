@@ -1326,6 +1326,30 @@ function toggleLang() {
 }
 function renderCurrentPage() { if (currentPage === 'home') renderHome(); else if (currentPage === 'detail' && currentDetailId) renderDetail(currentDetailId); else if (currentPage === 'predict') renderPredictCenter(); else if (currentPage === 'simulator') renderSimulatorTeams(); else if (currentPage === 'profile') renderProfile(); else if (currentPage === 'team') { const m = matchData.find(x => x.home === currentDetailId); if (m) renderTeam(m.home); } else if (currentPage === 'messages') renderMessages(); }
 
+// ======================== 盘赔深度数据库 ========================
+const BOOKMAKERS = ['威廉希尔','bet365','立博','澳门','皇冠','易胜博','伟德','Bwin','Pinnacle','SNAI','Interwetten','必发'];
+const ODDS_HISTORY = {};
+function getMatchOdds(mid, odds) {
+    if (ODDS_HISTORY[mid]) return ODDS_HISTORY[mid];
+    const open = { win: (odds.win+(Math.random()-.5)*.6).toFixed(2), draw: (odds.draw+(Math.random()-.5)*.4).toFixed(2), loss: (odds.loss+(Math.random()-.5)*.8).toFixed(2) };
+    const h = []; const now = Date.now();
+    for (let i = 24; i >= 0; i--) { const t = now-i*3600000; const n = (i-12)*.01; h.push({ time: new Date(t).toISOString(), win: (parseFloat(open.win)+n+(Math.random()-.5)*.2).toFixed(2), draw: (parseFloat(open.draw)-n*.5+(Math.random()-.5)*.15).toFixed(2), loss: (parseFloat(open.loss)+n*.3+(Math.random()-.5)*.25).toFixed(2) }); }
+    ODDS_HISTORY[mid] = { open, live: { win: odds.win, draw: odds.draw, loss: odds.loss }, history: h };
+    return ODDS_HISTORY[mid];
+}
+function getMultiBookmakerOdds(mid, baseOdds) {
+    return BOOKMAKERS.map(bm => { const s = bm.split('').reduce((a,c)=>a+c.charCodeAt(0),0); const n = (s%100-50)/100; return { name: bm, win: Math.max(1.01,(baseOdds.win+n*.3).toFixed(2)), draw: Math.max(1.01,(baseOdds.draw+n*.2).toFixed(2)), loss: Math.max(1.01,(baseOdds.loss+n*.35).toFixed(2)) }; });
+}
+function detectOddsAnomaly(mid, odds) {
+    const h = ODDS_HISTORY[mid]; if (!h) return [];
+    const cur = parseFloat(h.live.win), past = h.history[0] ? parseFloat(h.history[0].win) : cur;
+    const chg = Math.abs((cur-past)/past*100);
+    if (chg > 10) return [{ type: 'win', change: chg.toFixed(1), dir: cur>past?'↑':'↓', level: '🔴 异常' }];
+    if (chg > 5) return [{ type: 'win', change: chg.toFixed(1), dir: cur>past?'↑':'↓', level: '🟡 关注' }];
+    return [];
+}
+// 赔率API
+async function fetchOddsData(mid) { const m = getMatch(mid); if (!m?.odds) return null; return getMatchOdds(mid, m.odds); }
 // ======================== xG预期进球数据库 ========================
 const XG_DB = {}; // 动态生成
 function getTeamXG(teamName) {
@@ -2770,25 +2794,36 @@ function renderPredictPanel(m){
         </div>`;
     const predictContent = document.getElementById('predictContent');
     if (predictContent) predictContent.parentNode.insertBefore(ouPanel, predictContent.nextSibling);
-    // 盘赔深度对比
+    // 盘赔深度对比（12机构+变动+预警）
     if (m.odds) {
-        const bookmakers = ['威廉希尔','bet365','立博','澳门','皇冠','易胜博'];
-        const baseOdds = {win:m.odds.win,draw:m.odds.draw,loss:m.odds.loss};
-        const compHtml = bookmakers.map((bm,i) => {
-            const noise = (Math.random()-0.5)*0.3;
-            return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;padding:3px 0;font-size:.68rem;text-align:center;border-bottom:1px solid var(--border)">
-                <span>${bm}</span><span>${(baseOdds.win+noise).toFixed(2)}</span><span>${(baseOdds.draw+noise*0.5).toFixed(2)}</span><span>${(baseOdds.loss+noise*0.8).toFixed(2)}</span>
-            </div>`;
-        }).join('');
+        const data = getMatchOdds(m.id, m.odds);
+        const multiOdds = getMultiBookmakerOdds(m.id, m.odds);
+        const alerts = detectOddsAnomaly(m.id, m.odds);
+        const openWin = parseFloat(data.open.win), liveWin = parseFloat(data.live.win);
+        const changePct = ((liveWin - openWin) / openWin * 100).toFixed(1);
+        const changeColor = parseFloat(changePct) > 1 ? 'var(--red-bright)' : parseFloat(changePct) < -1 ? 'var(--green-bright)' : 'var(--sub)';
+        const compHtml = multiOdds.map(od => `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;padding:3px 0;font-size:.65rem;text-align:center;border-bottom:1px solid var(--border)">
+            <span>${od.name}</span><span style="color:${od.win<data.open.win?'var(--green-bright)':'var(--red-bright)'}">${od.win}</span><span>${od.draw}</span><span>${od.loss}</span></div>`).join('');
+        const alertHtml = alerts.length ? alerts.map(a => `<span style="color:var(--red-bright);font-weight:700;font-size:.68rem">${a.level} 主胜赔率24h变动${a.change}%${a.dir}</span>`).join('') : '<span style="color:var(--green-bright);font-size:.65rem">✅ 赔率稳定，无异常变动</span>';
         const existing = document.getElementById('oddsComparePanel');
         if (existing) existing.remove();
         const panel = document.createElement('div');
         panel.id = 'oddsComparePanel';
         panel.style.cssText = 'margin:8px 0;background:var(--card);border-radius:12px;padding:12px';
-        panel.innerHTML = `<div style="font-size:.78rem;color:var(--gold);font-weight:700;margin-bottom:6px">🏦 主流机构赔率对比</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;font-size:.65rem;color:var(--gold-dim);text-align:center;padding-bottom:4px;border-bottom:2px solid var(--border)"><span>机构</span><span>主胜</span><span>平局</span><span>客胜</span></div>${compHtml}`;
+        panel.innerHTML = `<div style="font-size:.78rem;color:var(--gold);font-weight:700;margin-bottom:6px">🏦 12机构盘赔深度对比</div>
+            <div class="stat-row" style="font-size:.68rem"><span>初盘主胜: ${data.open.win}</span><span>即时主胜: ${data.live.win}</span><span style="color:${changeColor}">变动: ${changePct}%</span></div>
+            <div style="margin:4px 0">${alertHtml}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;font-size:.62rem;color:var(--gold-dim);text-align:center;padding-bottom:4px;border-bottom:2px solid var(--border)"><span>机构</span><span>主胜</span><span>平局</span><span>客胜</span></div><div style="max-height:200px;overflow-y:auto">${compHtml}</div>
+            <canvas id="oddsTrajectory" width="360" height="100" style="width:100%;border-radius:8px;background:var(--bg);margin-top:8px"></canvas>`;
         const predictContent = document.getElementById('predictContent');
         if (predictContent) predictContent.parentNode.insertBefore(panel, predictContent.nextSibling);
+        setTimeout(() => {
+            const c = document.getElementById('oddsTrajectory'); if (!c) return;
+            const ctx = c.getContext('2d'); ctx.fillStyle = '#1A0A0A'; ctx.fillRect(0, 0, 360, 100);
+            ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 2; ctx.beginPath();
+            data.history.forEach((p, i) => { const x = 5 + i * 14.5, y = 90 - parseFloat(p.win) * 18; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }); ctx.stroke();
+            ctx.fillStyle = '#D4A88C'; ctx.font = '8px sans-serif'; ctx.fillText('24h赔率轨迹 · 红色=主胜', 10, 12);
+        }, 200);
     }
     // 赔率走势图
     setTimeout(() => drawOddsChart(m), 150);
@@ -6715,3 +6750,5 @@ document.addEventListener('DOMContentLoaded',()=>{addPinStyles();addSecurityMeta
 </script>
 </body>
 </html>
+
+
